@@ -1,73 +1,64 @@
 # MyHelpers
 
-A collection of utility scripts designed to streamline common tasks on Windows and Linux systems. These scripts help automate system updates, display management, and network interface switching.
+A collection of utility scripts for Windows and Linux to streamline common tasks such as app installation, system upgrades, display management, network switching, and basic desktop setup.
+
+## Linux (with GNOME)
+
+This repository provides an opinionated setup flow for Debian based Linux with the GNOME desktop.
+
+### Quick start
+- Make the setup script executable and run it:
+  - `chmod +x ./linux_utils/setup.sh`
+  - `./linux_utils/setup.sh`
+
+### What the setup does
+- Runs installer bundle: [linux_utils/install_all.sh](linux_utils/install_all.sh)
+  - Installs apps from [linux_utils/apps_installation](linux_utils/apps_installation)
+  - Each installer is idempotent and skips if the app is already installed
+  - Special case: [linux_utils/apps_installation/install_firefox.sh](linux_utils/apps_installation/install_firefox.sh) will detect and remove Snap Firefox (if present) and then install the APT version
+- Copies the upgrade helper to your home directory:
+  - From [linux_utils/upgrade.sh](linux_utils/upgrade.sh) to `$HOME/upgrade.sh`
+  - Re-runnable, won’t overwrite if it already exists
+- Sets a wallpaper (best-effort) from [linux_utils/wallpaper](linux_utils/wallpaper)
+  - Picks the first supported image (jpg, jpeg, png, bmp, webp) and applies it via GNOME gsettings
+
+### Requirements
+- Debian-based Linux (detected via /etc/os-release)
+- GNOME desktop (gsettings available with schema org.gnome.desktop.background)
+- sudo privileges
+- apt package manager
+
+### Per-app installers (idempotent)
+You can run any installer directly if you don’t want the full bundle:
+- Brave: [linux_utils/apps_installation/install_brave.sh](linux_utils/apps_installation/install_brave.sh)
+- VS Code: [linux_utils/apps_installation/install_code.sh](linux_utils/apps_installation/install_code.sh)
+- Discord: [linux_utils/apps_installation/install_discord.sh](linux_utils/apps_installation/install_discord.sh)
+- Firefox (APT; removes Snap version if present): [linux_utils/apps_installation/install_firefox.sh](linux_utils/apps_installation/install_firefox.sh)
+- KeePassXC: [linux_utils/apps_installation/install_keepassxc.sh](linux_utils/apps_installation/install_keepassxc.sh)
+- Spotify: [linux_utils/apps_installation/install_spotify.sh](linux_utils/apps_installation/install_spotify.sh)
+- VirtualBox: [linux_utils/apps_installation/install_virtualbox.sh](linux_utils/apps_installation/install_virtualbox.sh)
+
+### Upgrade helper
+- After running the setup, a convenience script will be available as `$HOME/upgrade.sh` (copied from [linux_utils/upgrade.sh](linux_utils/upgrade.sh))
+- Usage: `bash ~/upgrade.sh`
 
 ## Windows
 
 ### Features
-#### Display Management
 
-- `win_utils/ExtendDisplay.bat`: Extends your display setup to multiple monitors
-- `win_utils/FirstDisplay.bat`: Switches to primary display only
-- `win_utils/SecondDisplay.bat`: Switches to secondary display only
+- Display Management
+  - [win_utils/ExtendDisplay.bat](win_utils/ExtendDisplay.bat): Extend to multiple displays
+  - [win_utils/FirstDisplay.bat](win_utils/FirstDisplay.bat): Primary display only
+  - [win_utils/SecondDisplay.bat](win_utils/SecondDisplay.bat): Secondary display only
 
-#### Network Management
-- `win_utils/NetworkInterfaceSwitch.ps1`: PowerShell script for managing network interfaces
-- `win_utils/SwitchToEthernet.bat`: Quickly switch to Ethernet connection using `NetworkInterfaceSwitch.ps1`
-- `win_utils/SwitchToWiFi.bat`: Quickly switch to WiFi connection using `NetworkInterfaceSwitch.ps1`
+- Network Management
+  - [win_utils/NetworkInterfaceSwitch.ps1](win_utils/NetworkInterfaceSwitch.ps1): PowerShell script to enable/disable adapters by name
+  - [win_utils/SwitchToEthernet.bat](win_utils/SwitchToEthernet.bat): Enables Ethernet, disables Wi‑Fi
+  - [win_utils/SwitchToWiFi.bat](win_utils/SwitchToWiFi.bat): Enables Wi‑Fi, disables Ethernet
 
-### Installation & Setup
-
-1. Clone this repository or download the files
-2. Keep all files in the `win_utils` directory together
-3. You may want to add the `win_utils` directory to your system's PATH for easier access
-4. For network scripts, note your network interface names:
-    - Open PowerShell and run `Get-NetAdapter` to see your interface names
-    - Update the .bat files if your interface names differ from the defaults
-
-### Usage
-
-#### Display Scripts
-You can use either the convenience batch files or the PowerShell script directly:
-
-1. Using batch files (simplest):
-    - `ExtendDisplay.bat`: Extends to multiple displays
-    - `FirstDisplay.bat`: Switches to primary display
-    - `SecondDisplay.bat`: Switches to secondary display
-
-#### Network Scripts
-1. For quick network switching:
-    - Run `SwitchToEthernet.bat` to enable Ethernet and disable WiFi
-    - Run `SwitchToWiFi.bat` to enable WiFi and disable Ethernet
-
-## Windows Requirements
+### Windows requirements and notes
 - Windows 11
 - PowerShell 5.1 or later
-- Administrative privileges (for network interface management on Windows)
+- Administrative privileges required for network adapter changes
+- Determine your adapter names with `Get-NetAdapter` and adjust batch arguments if they differ from Wi‑Fi/Ethernet defaults
 
-## Linux
-
-### Features
-#### System Updates
-
-- `linux_utils/upgrade.sh`: Updates, upgrades, and cleans up the system using apt with colored output
-
-### Installation & Setup
-
-1. Clone this repository or download the files
-2. Keep all files in the `linux_utils` directory
-3. Ensure the script is executable: `chmod +x linux_utils/upgrade.sh`
-
-### Usage
-
-#### Upgrade Script
-Run `./linux_utils/upgrade.sh` to update and upgrade your system packages.
-
-### Linux Requirements
-- Ubuntu/Debian-based Linux distribution
-- sudo privileges
-- apt package manager
-
-
-### Security Note
-Some scripts require administrative privileges to function properly, especially those dealing with network interfaces. Run PowerShell or Command Prompt as Administrator when using Windows network management scripts. For Linux, ensure you have sudo access for system updates.

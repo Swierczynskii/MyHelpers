@@ -1,0 +1,1 @@
+tuned-adm profile intel-best_performance_mode
