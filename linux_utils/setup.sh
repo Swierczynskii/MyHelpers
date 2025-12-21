@@ -30,14 +30,23 @@ else
   exit 1
 fi
 
-# 1) Run installers from the selected backend
-INSTALL_ALL="$SCRIPT_DIR/$BACKEND/install_all.sh"
+# 1) Bootstrap developer toolchains (Node.js+pnpm via Corepack, Bun, uv, Rust, Go)
+TOOLCHAIN_BOOTSTRAP="$SCRIPT_DIR/toolchains/bootstrap_toolchains.sh"
+if [[ -f "$TOOLCHAIN_BOOTSTRAP" ]]; then
+  log "Bootstrapping developer toolchains via $TOOLCHAIN_BOOTSTRAP"
+  BACKEND="$BACKEND" bash "$TOOLCHAIN_BOOTSTRAP"
+else
+  log "Toolchain bootstrap script not found at $TOOLCHAIN_BOOTSTRAP (skipping)."
+fi
+
+# 2) Run unified installer orchestrator
+INSTALL_ALL="$SCRIPT_DIR/install_all.sh"
 if [[ -x "$INSTALL_ALL" ]]; then
   log "Running installer bundle: $INSTALL_ALL"
-  bash "$INSTALL_ALL"
+  BACKEND="$BACKEND" bash "$INSTALL_ALL"
 elif [[ -f "$INSTALL_ALL" ]]; then
   log "Installer exists but is not executable; running with bash."
-  bash "$INSTALL_ALL"
+  BACKEND="$BACKEND" bash "$INSTALL_ALL"
 else
   log "Installer not found at $INSTALL_ALL (skipping app installations)."
 fi

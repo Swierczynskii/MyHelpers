@@ -1,10 +1,10 @@
 # MyHelpers
 
-A collection of utility scripts for Windows and Linux to streamline common tasks such as app installation, system upgrades, display management, network switching, and basic desktop setup.
+A collection of utility scripts for Windows and Linux to streamline common tasks such as app installation, system upgrades, display management, network switching, and desktop setup.
 
-## Linux (with GNOME)
+## Linux
 
-This repository provides an opinionated setup flow for Debian based Linux with the GNOME desktop.
+This repository provides a unified setup flow for Debian/Ubuntu (apt) and Fedora (dnf). GNOME wallpaper configuration is supported on systems where gsettings and the org.gnome.desktop.background schema are available.
 
 ### Quick start
 - Make the setup script executable and run it:
@@ -12,35 +12,69 @@ This repository provides an opinionated setup flow for Debian based Linux with t
   - `./linux_utils/setup.sh`
 
 ### What the setup does
-- Runs installer bundle: [linux_utils/install_all.sh](linux_utils/install_all.sh)
-  - Installs apps from [linux_utils/apps_installation](linux_utils/apps_installation)
-  - Each installer is idempotent and skips if the app is already installed
-  - Special case: [linux_utils/apps_installation/install_firefox.sh](linux_utils/apps_installation/install_firefox.sh) will detect and remove Snap Firefox (if present) and then install the APT version
-- Copies the upgrade helper to your home directory:
-  - From [linux_utils/upgrade.sh](linux_utils/upgrade.sh) to `$HOME/upgrade.sh`
-  - Re-runnable, won’t overwrite if it already exists
-- Sets a wallpaper (best-effort) from [linux_utils/wallpaper](linux_utils/wallpaper)
-  - Picks the first supported image (jpg, jpeg, png, bmp, webp) and applies it via GNOME gsettings
+1) Bootstraps developer toolchains via [linux_utils/toolchains/bootstrap_toolchains.sh](linux_utils/toolchains/bootstrap_toolchains.sh)
+   - Node.js (per-user via nvm if Node isn’t present) and Corepack with pnpm activation
+   - Bun (official installer)
+   - uv (Astral official installer)
+   - Rust and cargo (via rustup)
+   - Go (official tarball; system-wide to /usr/local/go when sudo is available, else per-user)
+   - Adds the necessary PATH entries idempotently to your shell profiles
+
+2) Runs the unified app installer orchestrator: [linux_utils/install_all.sh](linux_utils/install_all.sh)
+   - Automatically detects the backend (apt vs dnf) and selects the matching apps_installations directory
+   - Fedora only: if present, runs [linux_utils/fedora_dnf/apps_installations/install_flatpak.sh](linux_utils/fedora_dnf/apps_installations/install_flatpak.sh) once before the rest of the apps, then skips it in the main loop
+   - Executes each app installer idempotently; installers skip when the app is already installed
+
+3) Copies an upgrade helper to `$HOME/upgrade.sh` (idempotent)
+   - Source file depends on your backend:
+     - Debian/Ubuntu: [linux_utils/debian_apt/upgrade.sh](linux_utils/debian_apt/upgrade.sh)
+     - Fedora: [linux_utils/fedora_dnf/upgrade.sh](linux_utils/fedora_dnf/upgrade.sh)
+
+4) Sets a wallpaper (best-effort) from [linux_utils/wallpaper](linux_utils/wallpaper)
+   - Picks the first supported image (jpg, jpeg, png, bmp, webp) and applies it via GNOME gsettings (if available)
 
 ### Requirements
-- Debian-based Linux (detected via /etc/os-release)
-- GNOME desktop (gsettings available with schema org.gnome.desktop.background)
-- sudo privileges
-- apt package manager
+- One of:
+  - Debian/Ubuntu with apt
+  - Fedora with dnf
+- sudo privileges for system packages
+- GNOME desktop only required for wallpaper step (gsettings + org.gnome.desktop.background)
 
 ### Per-app installers (idempotent)
-You can run any installer directly if you don’t want the full bundle:
-- Brave: [linux_utils/apps_installation/install_brave.sh](linux_utils/apps_installation/install_brave.sh)
-- VS Code: [linux_utils/apps_installation/install_code.sh](linux_utils/apps_installation/install_code.sh)
-- Discord: [linux_utils/apps_installation/install_discord.sh](linux_utils/apps_installation/install_discord.sh)
-- Firefox (APT; removes Snap version if present): [linux_utils/apps_installation/install_firefox.sh](linux_utils/apps_installation/install_firefox.sh)
-- KeePassXC: [linux_utils/apps_installation/install_keepassxc.sh](linux_utils/apps_installation/install_keepassxc.sh)
-- Spotify: [linux_utils/apps_installation/install_spotify.sh](linux_utils/apps_installation/install_spotify.sh)
-- VirtualBox: [linux_utils/apps_installation/install_virtualbox.sh](linux_utils/apps_installation/install_virtualbox.sh)
+You can run any installer directly if you don’t want the full bundle.
 
-### Upgrade helper
-- After running the setup, a convenience script will be available as `$HOME/upgrade.sh` (copied from [linux_utils/upgrade.sh](linux_utils/upgrade.sh))
-- Usage: `bash ~/upgrade.sh`
+- Debian/Ubuntu (apt):
+  - Brave: [linux_utils/debian_apt/apps_installations/install_brave.sh](linux_utils/debian_apt/apps_installations/install_brave.sh)
+  - VS Code: [linux_utils/debian_apt/apps_installations/install_code.sh](linux_utils/debian_apt/apps_installations/install_code.sh)
+  - Discord: [linux_utils/debian_apt/apps_installations/install_discord.sh](linux_utils/debian_apt/apps_installations/install_discord.sh)
+  - Firefox (APT; removes Snap Firefox if present): [linux_utils/debian_apt/apps_installations/install_firefox.sh](linux_utils/debian_apt/apps_installations/install_firefox.sh)
+  - KeePassXC: [linux_utils/debian_apt/apps_installations/install_keepassxc.sh](linux_utils/debian_apt/apps_installations/install_keepassxc.sh)
+  - Spotify: [linux_utils/debian_apt/apps_installations/install_spotify.sh](linux_utils/debian_apt/apps_installations/install_spotify.sh)
+  - VirtualBox: [linux_utils/debian_apt/apps_installations/install_virtualbox.sh](linux_utils/debian_apt/apps_installations/install_virtualbox.sh)
+
+- Fedora (dnf):
+  - Brave: [linux_utils/fedora_dnf/apps_installations/install_brave.sh](linux_utils/fedora_dnf/apps_installations/install_brave.sh)
+  - VS Code: [linux_utils/fedora_dnf/apps_installations/install_code.sh](linux_utils/fedora_dnf/apps_installations/install_code.sh)
+  - Discord: [linux_utils/fedora_dnf/apps_installations/install_discord.sh](linux_utils/fedora_dnf/apps_installations/install_discord.sh)
+  - Firefox (dnf, with Flatpak fallback): [linux_utils/fedora_dnf/apps_installations/install_firefox.sh](linux_utils/fedora_dnf/apps_installations/install_firefox.sh)
+  - Flatpak bootstrap: [linux_utils/fedora_dnf/apps_installations/install_flatpak.sh](linux_utils/fedora_dnf/apps_installations/install_flatpak.sh)
+  - KeePassXC: [linux_utils/fedora_dnf/apps_installations/install_keepassxc.sh](linux_utils/fedora_dnf/apps_installations/install_keepassxc.sh)
+  - Spotify: [linux_utils/fedora_dnf/apps_installations/install_spotify.sh](linux_utils/fedora_dnf/apps_installations/install_spotify.sh)
+  - VirtualBox: [linux_utils/fedora_dnf/apps_installations/install_virtualbox.sh](linux_utils/fedora_dnf/apps_installations/install_virtualbox.sh)
+
+### Manual usage
+- Run only the toolchain bootstrap:
+  - `bash linux_utils/toolchains/bootstrap_toolchains.sh`
+- Run only the app installers (auto-detects backend):
+  - `bash linux_utils/install_all.sh`
+- Force a backend (for testing):
+  - `BACKEND=debian_apt bash linux_utils/install_all.sh`
+  - `BACKEND=fedora_dnf bash linux_utils/install_all.sh`
+
+### Notes
+- All installers are intended to be idempotent and safe to re-run.
+- Fedora’s Flatpak environment is prepared once (if the bootstrap script is present) and then excluded from the main pass.
+- The setup script retains the previous behavior of copying an upgrade helper and setting wallpaper when possible.
 
 ## Windows
 
