@@ -165,14 +165,28 @@ install_node_corepack() {
 # 2) Bun (official script) - requires unzip
 # -------------------------------------------------------------------
 install_bun() {
+  # Make sure we detect existing per-user installs even if PATH isn't set
+  local bun_user_bin="$HOME/.bun/bin/bun"
+
   if have bun; then
+    # Ensure PATH is persisted and available in current shell
+    ensure_path_entry 'export PATH="$HOME/.bun/bin:$PATH"'
+    export PATH="$HOME/.bun/bin:$PATH"
     log "bun already installed: $(bun --version || true)"
     return
+  elif [[ -x "$bun_user_bin" ]]; then
+    # Bun is installed but not on PATH; fix PATH and skip reinstall
+    ensure_path_entry 'export PATH="$HOME/.bun/bin:$PATH"'
+    export PATH="$HOME/.bun/bin:$PATH"
+    log "bun detected at $bun_user_bin; version: $("$bun_user_bin" --version || true)"
+    return
   fi
+
   if ! have unzip; then
     log "Installing unzip prerequisite for Bun..."
     install_prereqs # ensures unzip via backend path
   fi
+
   log "Installing Bun..."
   # Official installer
   curl -fsSL https://bun.sh/install | bash

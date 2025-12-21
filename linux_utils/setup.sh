@@ -51,6 +51,35 @@ else
   log "Installer not found at $INSTALL_ALL (skipping app installations)."
 fi
 
+# 2a) Ensure lm-sensors is installed for temperature monitoring
+case "$BACKEND" in
+  debian_apt)
+    if ! dpkg -s lm-sensors >/dev/null 2>&1; then
+      log "Installing lm-sensors (apt)..."
+      if command -v apt-get >/dev/null 2>&1; then
+        sudo apt-get update -y || true
+        sudo apt-get install -y lm-sensors
+      else
+        sudo apt update -y || true
+        sudo apt install -y lm-sensors
+      fi
+    else
+      log "lm-sensors already installed."
+    fi
+    ;;
+  fedora_dnf)
+    if ! rpm -q lm_sensors >/dev/null 2>&1; then
+      log "Installing lm_sensors (dnf)..."
+      sudo dnf install -y lm_sensors
+    else
+      log "lm_sensors already installed."
+    fi
+    ;;
+  *)
+    log "Skipping lm-sensors installation (unsupported backend: $BACKEND)."
+    ;;
+esac
+
 # 2) Copy upgrade helper from backend to $HOME (idempotent)
 SRC_UPGRADE="$SCRIPT_DIR/$BACKEND/upgrade.sh"
 DEST_UPGRADE="$HOME/upgrade.sh"
@@ -64,6 +93,21 @@ if [[ -f "$SRC_UPGRADE" ]]; then
   fi
 else
   log "No upgrade.sh found at $SRC_UPGRADE."
+fi
+
+# 2b) Copy temps.sh helper to $HOME (idempotent) and ensure executable
+SRC_TEMPS="$SCRIPT_DIR/temps.sh"
+DEST_TEMPS="$HOME/temps.sh"
+if [[ -f "$SRC_TEMPS" ]]; then
+  if [[ -e "$DEST_TEMPS" ]]; then
+    log "temps.sh already exists at $DEST_TEMPS; ensuring executable."
+  else
+    log "Copying $SRC_TEMPS to $DEST_TEMPS"
+    cp "$SRC_TEMPS" "$DEST_TEMPS"
+  fi
+  chmod +x "$DEST_TEMPS" || true
+else
+  log "No temps.sh found at $SRC_TEMPS."
 fi
 
 # 3) Set wallpaper from linux_utils/wallpaper (GNOME best-effort)
