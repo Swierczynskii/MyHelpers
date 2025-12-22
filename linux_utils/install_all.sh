@@ -43,7 +43,7 @@ validate_backend() {
   esac
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &amp;&amp; pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Preconditions
 require_cmd bash
@@ -144,7 +144,7 @@ for script in "${INSTALL_SCRIPTS[@]}"; do
   if [[ -f "$script" ]]; then
     script_name="$(basename "$script")"
     # Skip the bootstrap script if already executed
-    if [[ -n "$SKIP_FILE" &amp;&amp; "$script_name" == "$SKIP_FILE" ]]; then
+    if [[ -n "$SKIP_FILE" && "$script_name" == "$SKIP_FILE" ]]; then
       log "Skipping $script_name (already executed)."
       continue
     fi
