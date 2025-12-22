@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# -----------------------------------------------------------------------------
+# linux_utils/setup.sh
+# Orchestrated Linux setup for Debian/Ubuntu (apt) and Fedora (dnf).
+# - Bootstraps developer toolchains (Node.js + Corepack/pnpm, uv)
+# - Runs per-backend app installers via install_all.sh
+# - Ensures lm-sensors and copies temps.sh to $HOME
+# - Copies backend-specific upgrade.sh to $HOME
+# - Best-effort GNOME wallpaper configuration with interactive picture-options
+# Safe to re-run; individual steps are idempotent.
+# -----------------------------------------------------------------------------
 
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
@@ -30,7 +40,7 @@ else
   exit 1
 fi
 
-# 1) Bootstrap developer toolchains (Node.js+pnpm via Corepack, Bun, uv, Rust, Go)
+# 1) Bootstrap developer toolchains (Node.js + Corepack/pnpm, uv)
 TOOLCHAIN_BOOTSTRAP="$SCRIPT_DIR/toolchains/bootstrap_toolchains.sh"
 if [[ -f "$TOOLCHAIN_BOOTSTRAP" ]]; then
   log "Bootstrapping developer toolchains via $TOOLCHAIN_BOOTSTRAP"
@@ -80,7 +90,7 @@ case "$BACKEND" in
     ;;
 esac
 
-# 2) Copy upgrade helper from backend to $HOME (idempotent)
+# 3) Copy upgrade helper from backend to $HOME (idempotent)
 SRC_UPGRADE="$SCRIPT_DIR/$BACKEND/upgrade.sh"
 DEST_UPGRADE="$HOME/upgrade.sh"
 if [[ -f "$SRC_UPGRADE" ]]; then
@@ -95,7 +105,7 @@ else
   log "No upgrade.sh found at $SRC_UPGRADE."
 fi
 
-# 2b) Copy temps.sh helper to $HOME (idempotent) and ensure executable
+# 3a) Copy temps.sh helper to $HOME (idempotent) and ensure executable
 SRC_TEMPS="$SCRIPT_DIR/temps.sh"
 DEST_TEMPS="$HOME/temps.sh"
 if [[ -f "$SRC_TEMPS" ]]; then
@@ -110,7 +120,7 @@ else
   log "No temps.sh found at $SRC_TEMPS."
 fi
 
-# 3) Set wallpaper from linux_utils/wallpaper (GNOME best-effort)
+# 4) Set wallpaper from linux_utils/wallpaper (GNOME best-effort)
 WALLPAPER_DIR="$SCRIPT_DIR/wallpaper"
 if command -v gsettings >/dev/null 2>&1; then
   if gsettings list-schemas | grep -q '^org.gnome.desktop.background$'; then
