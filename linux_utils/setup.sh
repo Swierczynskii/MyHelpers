@@ -90,31 +90,23 @@ case "$BACKEND" in
     ;;
 esac
 
-# 3) Copy upgrade helper from backend to $HOME (idempotent)
+# 3) Copy upgrade helper from backend to $HOME (force overwrite, ensure executable)
 SRC_UPGRADE="$SCRIPT_DIR/$BACKEND/upgrade.sh"
 DEST_UPGRADE="$HOME/upgrade.sh"
 if [[ -f "$SRC_UPGRADE" ]]; then
-  if [[ -e "$DEST_UPGRADE" ]]; then
-    log "upgrade.sh already exists at $DEST_UPGRADE; leaving as-is."
-  else
-    log "Copying $SRC_UPGRADE to $DEST_UPGRADE"
-    cp "$SRC_UPGRADE" "$DEST_UPGRADE"
-    chmod +x "$DEST_UPGRADE" || true
-  fi
+  log "Copying $SRC_UPGRADE to $DEST_UPGRADE (overwriting)"
+  cp -f "$SRC_UPGRADE" "$DEST_UPGRADE"
+  chmod +x "$DEST_UPGRADE" || true
 else
   log "No upgrade.sh found at $SRC_UPGRADE."
 fi
 
-# 3a) Copy temps.sh helper to $HOME (idempotent) and ensure executable
+# 3a) Copy temps.sh helper to $HOME (force overwrite) and ensure executable
 SRC_TEMPS="$SCRIPT_DIR/temps.sh"
 DEST_TEMPS="$HOME/temps.sh"
 if [[ -f "$SRC_TEMPS" ]]; then
-  if [[ -e "$DEST_TEMPS" ]]; then
-    log "temps.sh already exists at $DEST_TEMPS; ensuring executable."
-  else
-    log "Copying $SRC_TEMPS to $DEST_TEMPS"
-    cp "$SRC_TEMPS" "$DEST_TEMPS"
-  fi
+  log "Copying $SRC_TEMPS to $DEST_TEMPS (overwriting)"
+  cp -f "$SRC_TEMPS" "$DEST_TEMPS"
   chmod +x "$DEST_TEMPS" || true
 else
   log "No temps.sh found at $SRC_TEMPS."
