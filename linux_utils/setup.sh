@@ -2,10 +2,10 @@
 set -euo pipefail
 # -----------------------------------------------------------------------------
 # linux_utils/setup.sh
-# Orchestrated Linux setup for Debian/Ubuntu (apt) and Fedora (dnf).
+# Orchestrated Linux setup for Debian/Ubuntu (apt).
 # - Bootstraps developer toolchains (Node.js + Corepack/pnpm, uv)
 # - Runs per-backend app installers via install_all.sh
-# - Ensures lm-sensors and copies temps.sh to $HOME
+# - Ensures lm-sensors and copies monitor.sh to $HOME
 # - Copies backend-specific upgrade.sh to $HOME
 # - Best-effort GNOME wallpaper configuration with interactive picture-options
 # Safe to re-run; individual steps are idempotent.
@@ -27,16 +27,12 @@ if [[ -r /etc/os-release ]]; then
   OS_NAME="${PRETTY_NAME:-${NAME:-$OS_ID}}"
 fi
 
-# Select backend based on available package manager
-BACKEND=""
+# Select backend based on available package manager (apt-only)
+BACKEND="debian_apt"
 if command -v apt >/dev/null 2>&1; then
-  BACKEND="debian_apt"
   log "Detected Debian/Ubuntu (apt) environment."
-elif command -v dnf >/dev/null 2>&1; then
-  BACKEND="fedora_dnf"
-  log "Detected Fedora (dnf) environment."
 else
-  log "Unsupported Linux distribution: neither apt nor dnf found."
+  log "Unsupported Linux distribution: apt not found."
   exit 1
 fi
 
@@ -61,34 +57,19 @@ else
   log "Installer not found at $INSTALL_ALL (skipping app installations)."
 fi
 
-# 2a) Ensure lm-sensors is installed for temperature monitoring
-case "$BACKEND" in
-  debian_apt)
-    if ! dpkg -s lm-sensors >/dev/null 2>&1; then
-      log "Installing lm-sensors (apt)..."
-      if command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get update -y || true
-        sudo apt-get install -y lm-sensors
-      else
-        sudo apt update -y || true
-        sudo apt install -y lm-sensors
-      fi
-    else
-      log "lm-sensors already installed."
-    fi
-    ;;
-  fedora_dnf)
-    if ! rpm -q lm_sensors >/dev/null 2>&1; then
-      log "Installing lm_sensors (dnf)..."
-      sudo dnf install -y lm_sensors
-    else
-      log "lm_sensors already installed."
-    fi
-    ;;
-  *)
-    log "Skipping lm-sensors installation (unsupported backend: $BACKEND)."
-    ;;
-esac
+# 2a) Ensure lm-sensors is installed for temperature monitoring (apt-only)
+if ! dpkg -s lm-sensors >/dev/null 2>&1; then
+  log "Installing lm-sensors (apt)..."
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update -y || true
+    sudo apt-get install -y lm-sensors
+  else
+    sudo apt update -y || true
+    sudo apt install -y lm-sensors
+  fi
+else
+  log "lm-sensors already installed."
+fi
 
 # 3) Copy upgrade helper from backend to $HOME (force overwrite, ensure executable)
 SRC_UPGRADE="$SCRIPT_DIR/$BACKEND/upgrade.sh"
@@ -101,15 +82,15 @@ else
   log "No upgrade.sh found at $SRC_UPGRADE."
 fi
 
-# 3a) Copy temps.sh helper to $HOME (force overwrite) and ensure executable
-SRC_TEMPS="$SCRIPT_DIR/temps.sh"
-DEST_TEMPS="$HOME/temps.sh"
-if [[ -f "$SRC_TEMPS" ]]; then
-  log "Copying $SRC_TEMPS to $DEST_TEMPS (overwriting)"
-  cp -f "$SRC_TEMPS" "$DEST_TEMPS"
-  chmod +x "$DEST_TEMPS" || true
+# 3a) Copy monitor.sh helper to $HOME (force overwrite) and ensure executable
+SRC_MONITOR="$SCRIPT_DIR/monitor.sh"
+DEST_MONITOR="$HOME/monitor.sh"
+if [[ -f "$SRC_MONITOR" ]]; then
+  log "Copying $SRC_MONITOR to $DEST_MONITOR (overwriting)"
+  cp -f "$SRC_MONITOR" "$DEST_MONITOR"
+  chmod +x "$DEST_MONITOR" || true
 else
-  log "No temps.sh found at $SRC_TEMPS."
+  log "No monitor.sh found at $SRC_MONITOR."
 fi
 
 # 4) Set wallpaper from linux_utils/wallpaper (GNOME best-effort)

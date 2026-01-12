@@ -3,21 +3,19 @@ set -euo pipefail
 umask 022
 # -----------------------------------------------------------------------------
 # linux_utils/install_all.sh
-# Unified installer orchestrator for Debian/Ubuntu (apt) and Fedora (dnf)
+# Unified installer orchestrator for Debian/Ubuntu (apt)
 # - Detects backend (or uses BACKEND env)
 # - Runs backend/tools_installations/install_*.sh (if present)
-# - Fedora: bootstraps Flatpak once via apps_installations/install_flatpak.sh if present
-# - Runs backend/apps_installations/install_*.sh (skipping install_flatpak.sh if already executed)
+# - Runs backend/apps_installations/install_*.sh
 # - Refuses to auto-chmod; scripts must already be executable
 # - Stops on first failure
 # Safe to re-run; individual installers should be idempotent.
 # -----------------------------------------------------------------------------
 
-# Unified installer orchestrator for Debian/Ubuntu (apt) and Fedora (dnf)
+# Unified installer orchestrator for Debian/Ubuntu (apt)
 # - Detects backend (or uses BACKEND env)
 # - Runs backend/tools_installations/install_*.sh (if present)
-# - Fedora: bootstraps Flatpak once via apps_installations/install_flatpak.sh if present
-# - Runs backend/apps_installations/install_*.sh (skipping install_flatpak.sh if already executed)
+# - Runs backend/apps_installations/install_*.sh
 
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
@@ -35,9 +33,9 @@ require_cmd() {
 validate_backend() {
   local backend="$1"
   case "$backend" in
-    debian_apt|fedora_dnf) return 0 ;;
+    debian_apt) return 0 ;;
     *)
-      log "ERROR: Invalid BACKEND '$backend'. Allowed: debian_apt, fedora_dnf"
+      log "ERROR: Invalid BACKEND '$backend'. Allowed: debian_apt"
       exit 1
       ;;
   esac
@@ -58,11 +56,8 @@ if [[ -z "$BACKEND" ]]; then
   if command -v apt >/dev/null 2>&1; then
     BACKEND="debian_apt"
     log "Detected Debian/Ubuntu (apt) environment."
-  elif command -v dnf >/dev/null 2>&1; then
-    BACKEND="fedora_dnf"
-    log "Detected Fedora (dnf) environment."
   else
-    log "Unsupported Linux distribution: neither apt nor dnf found."
+    log "Unsupported Linux distribution: apt not found."
     exit 1
   fi
 else
@@ -113,24 +108,7 @@ else
   log "No tools_installations directory at $TOOLS_DIR (skipping tools)."
 fi
 
-# 2) Fedora-only: Flatpak bootstrap (if present)
-SKIP_FILE=""
-if [[ "$BACKEND" == "fedora_dnf" ]]; then
-  FLATPAK_BOOTSTRAP="$APPS_DIR/install_flatpak.sh"
-  if [[ -f "$FLATPAK_BOOTSTRAP" ]]; then
-    log "Preparing Flatpak environment via $(basename "$FLATPAK_BOOTSTRAP")..."
-    if [[ ! -x "$FLATPAK_BOOTSTRAP" ]]; then
-      log "ERROR: $(basename "$FLATPAK_BOOTSTRAP") is not executable; refusing to change permissions automatically."
-      exit 1
-    fi
-    if bash "$FLATPAK_BOOTSTRAP"; then
-      log "Flatpak environment prepared."
-      SKIP_FILE="$(basename "$FLATPAK_BOOTSTRAP")"
-    else
-      log "WARNING: Flatpak setup failed; continuing without Flatpak fallback."
-    fi
-  fi
-fi
+# 2) (removed) Fedora-specific bootstrap
 
 # 3) Run app installers
 shopt -s nullglob
@@ -143,11 +121,6 @@ fi
 for script in "${INSTALL_SCRIPTS[@]}"; do
   if [[ -f "$script" ]]; then
     script_name="$(basename "$script")"
-    # Skip the bootstrap script if already executed
-    if [[ -n "$SKIP_FILE" && "$script_name" == "$SKIP_FILE" ]]; then
-      log "Skipping $script_name (already executed)."
-      continue
-    fi
     log "Processing $script_name..."
     if [[ ! -x "$script" ]]; then
       log "ERROR: $script_name is not executable; refusing to change permissions automatically."

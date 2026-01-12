@@ -4,7 +4,7 @@ A collection of utility scripts for Windows and Linux to streamline common tasks
 
 ## Linux
 
-This repository provides a unified setup flow for Debian/Ubuntu (apt) and Fedora (dnf). GNOME wallpaper configuration is supported on systems where gsettings and the org.gnome.desktop.background schema are available.
+This repository provides a unified setup flow for Debian/Ubuntu (apt). GNOME wallpaper configuration is supported on systems where gsettings and the org.gnome.desktop.background schema are available.
 
 ### Quick start
 - Make the setup script executable and run it:
@@ -18,21 +18,19 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt) and Fedora
    - Adds the necessary PATH entries idempotently to your shell profiles
 
 2) Runs the unified app installer orchestrator: [linux_utils/install_all.sh](linux_utils/install_all.sh)
-   - Automatically detects the backend (apt vs dnf) and selects the matching apps_installations directory
+   - Uses the Debian/Ubuntu backend and selects the matching apps_installations directory
    - Optional: runs backend/tools_installations/install_*.sh first if such directory exists
-   - Fedora only: if present, runs [linux_utils/fedora_dnf/apps_installations/install_flatpak.sh](linux_utils/fedora_dnf/apps_installations/install_flatpak.sh) once before the rest of the apps, then skips it in the main loop
    - Executes each app installer idempotently; installers skip when the app is already installed
    - Notes: installers must be executable; the orchestrator refuses to chmod executable bits automatically and will exit if a script is not executable
 
 3) Copies an upgrade helper to `$HOME/upgrade.sh` (idempotent)
-   - Source file depends on your backend:
+   - Source file:
      - Debian/Ubuntu: [linux_utils/debian_apt/upgrade.sh](linux_utils/debian_apt/upgrade.sh)
-     - Fedora: [linux_utils/fedora_dnf/upgrade.sh](linux_utils/fedora_dnf/upgrade.sh)
 
-3a) Ensures temperature monitoring helper is available
+3a) Ensures system monitor helper is available
    - Installs lm-sensors if missing
-   - Copies [linux_utils/temps.sh](linux_utils/temps.sh) to `$HOME/temps.sh` and marks it executable (idempotent)
-   - Usage after setup: `~/temps.sh` (live watch of sensors output, requires lm-sensors)
+   - Copies [linux_utils/monitor.sh](linux_utils/monitor.sh) to `$HOME/monitor.sh` and marks it executable (idempotent)
+   - Usage after setup: `~/monitor.sh` (tmux split: top + watch sensors; requires lm-sensors, tmux, procps/procps-ng)
 
 4) Sets a wallpaper (best-effort) from [linux_utils/wallpaper](linux_utils/wallpaper)
    - Picks the first supported image (jpg, jpeg, png, bmp, webp)
@@ -40,9 +38,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt) and Fedora
    - Prompts interactively for GNOME picture-options (default: zoom)
 
 ### Requirements
-- One of:
-  - Debian/Ubuntu with apt
-  - Fedora with dnf
+- Debian/Ubuntu with apt
 - sudo privileges for system packages are recommended/required for most installers
 - GNOME desktop only required for wallpaper step (gsettings + org.gnome.desktop.background)
 - Internet access for package and toolchain downloads
@@ -59,26 +55,14 @@ You can run any installer directly if you don’t want the full bundle.
   - Spotify: [linux_utils/debian_apt/apps_installations/install_spotify.sh](linux_utils/debian_apt/apps_installations/install_spotify.sh)
   - VirtualBox: [linux_utils/debian_apt/apps_installations/install_virtualbox.sh](linux_utils/debian_apt/apps_installations/install_virtualbox.sh)
 
-- Fedora (dnf):
-  - Brave: [linux_utils/fedora_dnf/apps_installations/install_brave.sh](linux_utils/fedora_dnf/apps_installations/install_brave.sh)
-  - VS Code: [linux_utils/fedora_dnf/apps_installations/install_code.sh](linux_utils/fedora_dnf/apps_installations/install_code.sh)
-  - Discord: [linux_utils/fedora_dnf/apps_installations/install_discord.sh](linux_utils/fedora_dnf/apps_installations/install_discord.sh)
-  - Firefox (dnf, with Flatpak fallback): [linux_utils/fedora_dnf/apps_installations/install_firefox.sh](linux_utils/fedora_dnf/apps_installations/install_firefox.sh)
-  - Flatpak bootstrap: [linux_utils/fedora_dnf/apps_installations/install_flatpak.sh](linux_utils/fedora_dnf/apps_installations/install_flatpak.sh)
-  - KeePassXC: [linux_utils/fedora_dnf/apps_installations/install_keepassxc.sh](linux_utils/fedora_dnf/apps_installations/install_keepassxc.sh)
-  - Spotify: [linux_utils/fedora_dnf/apps_installations/install_spotify.sh](linux_utils/fedora_dnf/apps_installations/install_spotify.sh)
-  - VirtualBox: [linux_utils/fedora_dnf/apps_installations/install_virtualbox.sh](linux_utils/fedora_dnf/apps_installations/install_virtualbox.sh)
-
 ### Manual usage
 - Run only the toolchain bootstrap:
   - `bash linux_utils/toolchains/bootstrap_toolchains.sh`
   - Optional: override Node version by exporting `NODE_VERSION` (e.g., `NODE_VERSION=v22.11.0`)
-- Run only the app installers (auto-detects backend):
+- Run only the app installers:
   - `bash linux_utils/install_all.sh`
 - Force a backend (for testing):
   - `BACKEND=debian_apt bash linux_utils/install_all.sh`
-  - `BACKEND=fedora_dnf bash linux_utils/install_all.sh`
-- Intel power modes helpers (see below) can be executed directly
 
 ### Intel power modes helpers
 Located under [linux_utils/intel](linux_utils/intel):
@@ -88,13 +72,7 @@ Located under [linux_utils/intel](linux_utils/intel):
 - Set best power efficiency: [linux_utils/intel/switches/set_pwr_eff_mode.sh](linux_utils/intel/switches/set_pwr_eff_mode.sh)
 
 Notes:
-- These helpers call tuned-adm profiles from Intel's EPP Tuning package and are intended for Intel Ultra Mobile CPUs as per Intel's documentation.
-- Prerequisites: `tuned-adm` and Intel EPP profiles installed and available on your system.
-- You may need to run them with elevated privileges (e.g., via sudo) depending on your tuned configuration.
-
-### Notes
 - All installers are intended to be idempotent and safe to re-run.
-- Fedora’s Flatpak environment is prepared once (if the bootstrap script is present) and then excluded from the main pass.
 - The setup script also ensures the presence of an upgrade helper and a simple temperature monitor script in your home directory, and sets wallpaper on GNOME when possible.
 - The orchestrator enforces executability for install scripts and will stop if a script is not executable to avoid unintended permission changes.
 
