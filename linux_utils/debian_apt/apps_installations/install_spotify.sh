@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 022
+# -----------------------------------------------------------------------------
+# linux_utils/debian_apt/apps_installations/install_spotify.sh
+# Install Spotify via official Spotify APT repository (keyrings + signed-by)
+# Prerequisites: sudo, apt-get, curl or wget, gpg/dirmngr, ca-certificates, network access
+# Usage: ./install_spotify.sh
+# Non-interactive: export DEBIAN_FRONTEND=noninteractive
+# -----------------------------------------------------------------------------
+export DEBIAN_FRONTEND=noninteractive
 
 # Spotify installation via official Spotify APT repository (keyrings + signed-by)
 
@@ -20,24 +29,24 @@ echo "[*] Ensuring prerequisites..."
 NEED_UPDATE=0
 if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
   echo " - Installing wget (no curl/wget found)"
-  sudo apt update
-  sudo apt install -y wget
+  sudo apt-get update
+  sudo apt-get install -y wget
   NEED_UPDATE=1
 fi
 if ! command -v gpg >/dev/null 2>&1; then
   echo " - Installing gpg"
-  [[ $NEED_UPDATE -eq 0 ]] && sudo apt update || true
-  sudo apt install -y gpg
+  [[ $NEED_UPDATE -eq 0 ]] && sudo apt-get update || true
+  sudo apt-get install -y gpg
 fi
 if ! command -v dirmngr >/dev/null 2>&1; then
   echo " - Installing dirmngr (required for keyserver access)"
-  [[ $NEED_UPDATE -eq 0 ]] && sudo apt update || true
-  sudo apt install -y dirmngr
+  [[ $NEED_UPDATE -eq 0 ]] && sudo apt-get update || true
+  sudo apt-get install -y dirmngr
 fi
 if ! dpkg -s ca-certificates >/dev/null 2>&1; then
   echo " - Installing ca-certificates"
-  [[ $NEED_UPDATE -eq 0 ]] && sudo apt update || true
-  sudo apt install -y ca-certificates
+  [[ $NEED_UPDATE -eq 0 ]] && sudo apt-get update || true
+  sudo apt-get install -y ca-certificates
 fi
 
 echo "[*] Preparing keyrings directory..."
@@ -107,10 +116,10 @@ else
 fi
 
 echo "[*] Updating package lists..."
-sudo apt update
+sudo apt-get update
 
 echo "[*] Installing spotify-client..."
-sudo apt install -y spotify-client
+sudo apt-get install -y spotify-client
 
 echo "----------------------------------------------"
 echo "Spotify installation complete."

@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 022
+# -----------------------------------------------------------------------------
+# linux_utils/debian_apt/apps_installations/install_discord.sh
+# Install Discord by downloading the official .deb and installing via apt-get
+# Prerequisites: sudo, apt-get, curl or wget (one will be installed if missing)
+# Usage: ./install_discord.sh
+# Non-interactive: export DEBIAN_FRONTEND=noninteractive
+# -----------------------------------------------------------------------------
+export DEBIAN_FRONTEND=noninteractive
 
 # Discord installation by downloading the official .deb and installing via apt
 
@@ -25,8 +34,8 @@ fi
 echo "[*] Ensuring prerequisites..."
 if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
   echo " - Installing wget (no curl/wget found)"
-  sudo apt update
-  sudo apt install -y wget
+  sudo apt-get update
+  sudo apt-get install -y wget
 fi
 
 TMP_DIR="$(mktemp -d)"
@@ -47,7 +56,7 @@ echo "[*] Downloading Discord .deb..."
 download_to "$URL" "$DEB"
 
 echo "[*] Installing Discord (this will resolve dependencies automatically)..."
-sudo apt install -y "$DEB"
+sudo apt-get install -y "$DEB"
 
 echo "----------------------------------------------"
 echo "Discord installation complete."

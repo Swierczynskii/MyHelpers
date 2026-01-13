@@ -2,7 +2,7 @@
 set -euo pipefail
 # -----------------------------------------------------------------------------
 # linux_utils/monitor.sh
-# Tmux-based system monitor: side-by-side 'top' and 'watch -n <interval> -d sensors'
+# Tmux-based system monitor: side-by-side 'top' and 'watch -n <interval> -d sensors' (accepts fractional INTERVAL, e.g., 0.5 or .5)
 #
 # Replaces: linux_utils/temps.sh
 #
@@ -13,7 +13,8 @@ set -euo pipefail
 #
 # Usage:
 #   ./monitor.sh
-#   INTERVAL=2 ./monitor.sh   # refresh every 2 seconds (default: 1)
+#   INTERVAL=2 ./monitor.sh    # refresh every 2 seconds (default: 1)
+#   INTERVAL=.5 ./monitor.sh   # refresh every 0.5 seconds (leading-dot accepted)
 # -----------------------------------------------------------------------------
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -36,8 +37,8 @@ if ! have top; then
 fi
 
 INTERVAL="${INTERVAL:-1}"
-# Validate INTERVAL strictly numeric (integer or decimal)
-if [[ ! "$INTERVAL" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+# Validate INTERVAL strictly numeric (integer or decimal, allow leading-dot like .5)
+if [[ ! "$INTERVAL" =~ ^([0-9]+([.][0-9]+)?|[.][0-9]+)$ ]]; then
   echo "WARNING: Invalid INTERVAL '$INTERVAL'; defaulting to 1" >&2
   INTERVAL="1"
 fi

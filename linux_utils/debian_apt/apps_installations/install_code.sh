@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 022
+# Non-interactive installs use apt-get; DEBIAN_FRONTEND ensures no prompts
+export DEBIAN_FRONTEND=noninteractive
 
 # Visual Studio Code (stable + optional Insiders) installation via Microsoft APT repository
 
@@ -57,16 +60,21 @@ echo "deb [${ARCHES} signed-by=${KEYRING}] ${CODE_URL} stable main" | sudo tee "
 sudo chmod 0644 "$LIST"
 
 echo "[*] Updating package lists..."
-sudo apt update
+sudo apt-get update
 
 echo "[*] Installing code (stable)..."
-sudo apt install -y code
+sudo apt-get install -y code
 
-# Prompt to optionally install Insiders
-read -r -p "Would you like to install Visual Studio Code Insiders as well? [y/N]: " INSTALL_INSIDERS || true
+# Prompt to optionally install Insiders (TTY-only; default No when non-interactive)
+if [[ -t 0 ]]; then
+  read -r -p "Would you like to install Visual Studio Code Insiders as well? [y/N]: " INSTALL_INSIDERS || true
+else
+  INSTALL_INSIDERS="N"
+  echo "[*] Non-interactive stdin detected; skipping optional Insiders install (default: No)."
+fi
 if [[ "${INSTALL_INSIDERS:-N}" =~ ^[Yy]$ ]]; then
   echo "[*] Installing code-insiders..."
-  sudo apt install -y code-insiders
+  sudo apt-get install -y code-insiders
 fi
 
 echo "----------------------------------------------"

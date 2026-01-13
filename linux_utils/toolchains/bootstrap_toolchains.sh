@@ -158,7 +158,7 @@ install_podman() {
 
 # -------------------------------------------------------------------
 # 1) Node.js + Corepack (pnpm)
-# Prefer per-user install via nvm; fallback to system node if present.
+# Installs Node.js from the official tarball; per-user install if sudo is unavailable, otherwise /usr/local. Corepack enables pnpm.
 # -------------------------------------------------------------------
 install_node_corepack() {
   # Install latest LTS Node.js securely (official tarball + SHA256) and enable pnpm via Corepack.

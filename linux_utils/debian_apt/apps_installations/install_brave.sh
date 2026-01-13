@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-# Brave Browser installation via official Brave APT repository (keyrings + signed-by)
+umask 022
+# -----------------------------------------------------------------------------
+# linux_utils/debian_apt/apps_installations/install_brave.sh
+# Install Brave Browser via official Brave APT repository (keyrings + signed-by)
+# Prerequisites: sudo, apt-get, curl or wget, network access
+# Usage: ./install_brave.sh
+# Non-interactive: export DEBIAN_FRONTEND=noninteractive
+# -----------------------------------------------------------------------------
+export DEBIAN_FRONTEND=noninteractive
 
 # Ensure apt is available
 if ! command -v apt >/dev/null 2>&1; then
@@ -19,8 +26,8 @@ fi
 echo "[*] Ensuring prerequisites..."
 if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
   echo " - Installing wget (no curl/wget found)"
-  sudo apt update
-  sudo apt install -y wget
+  sudo apt-get update
+  sudo apt-get install -y wget
 fi
 
 echo "[*] Preparing keyrings directory..."
@@ -65,10 +72,10 @@ echo "deb [arch=$ARCH signed-by=$KEYRING] ${BRAVE_URL} stable main" | sudo tee "
 sudo chmod 0644 "$LIST"
 
 echo "[*] Updating package lists..."
-sudo apt update
+sudo apt-get update
 
 echo "[*] Installing brave-browser..."
-sudo apt install -y brave-browser
+sudo apt-get install -y brave-browser
 
 echo "----------------------------------------------"
 echo "Brave Browser installation complete."

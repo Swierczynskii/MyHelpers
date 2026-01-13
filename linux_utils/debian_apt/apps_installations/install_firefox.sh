@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 022
+# -----------------------------------------------------------------------------
+# linux_utils/debian_apt/apps_installations/install_firefox.sh
+# Install Firefox via official Mozilla APT repository (keyrings + signed-by)
+# Prerequisites: sudo, apt-get, curl or wget, network access, optional snap
+# Usage: ./install_firefox.sh
+# Non-interactive: export DEBIAN_FRONTEND=noninteractive
+# -----------------------------------------------------------------------------
+export DEBIAN_FRONTEND=noninteractive
 
 # Firefox installation via official Mozilla APT repository (keyrings + signed-by)
 
@@ -13,8 +22,8 @@ echo "[*] Ensuring prerequisites..."
 NEED_UPDATE=0
 if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
   echo " - Installing wget (no curl/wget found)"
-  sudo apt update
-  sudo apt install -y wget
+  sudo apt-get update
+  sudo apt-get install -y wget
   NEED_UPDATE=1
 fi
 
@@ -81,10 +90,10 @@ else
 fi
 
 echo "[*] Updating package lists..."
-sudo apt update
+sudo apt-get update
 
 echo "[*] Installing firefox..."
-sudo apt install -y firefox
+sudo apt-get install -y firefox
 
 echo "----------------------------------------------"
 echo "Firefox installation complete."
