@@ -1,2 +1,5 @@
-linux_utils/wallpaper/*
-!linux_utils/wallpaper/placeholder
+# Generated logs
+/logs/*.log
+
+# Local wallpaper assets
+/linux_utils/wallpaper/*

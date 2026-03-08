@@ -10,27 +10,70 @@ umask 022
 # -----------------------------------------------------------------------------
 export DEBIAN_FRONTEND=noninteractive
 
+COLOR_ENABLED=0
+if [[ "${FORCE_COLOR:-0}" == "1" || -t 1 ]]; then
+  COLOR_ENABLED=1
+fi
+
+TIMESTAMP_COLOR='\033[1;36m'
+TITLE_COLOR='\033[1;33m'
+ERROR_COLOR='\033[1;31m'
+NC='\033[0m'
+
+timestamp() {
+  local ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
+  if (( COLOR_ENABLED )); then
+    printf '%b%s%b' "$TIMESTAMP_COLOR" "$ts" "$NC"
+  else
+    printf '%s' "$ts"
+  fi
+}
+
+log() {
+  printf '%s %s\n' "$(timestamp)" "$*"
+}
+
+err() {
+  if (( COLOR_ENABLED )); then
+    printf '%s %bERROR:%b %s\n' "$(timestamp)" "$ERROR_COLOR" "$NC" "$*" >&2
+  else
+    printf '%s ERROR: %s\n' "$(timestamp)" "$*" >&2
+  fi
+}
+
+title() {
+  if (( COLOR_ENABLED )); then
+    printf '%s %b%s%b\n' "$(timestamp)" "$TITLE_COLOR" "$*" "$NC"
+  else
+    printf '%s %s\n' "$(timestamp)" "$*"
+  fi
+}
+
+if [[ "${SKIP_INSTALLER_TITLE:-0}" != "1" ]]; then
+  title "Installing Brave Browser"
+fi
+
 # Ensure apt is available
 if ! command -v apt >/dev/null 2>&1; then
-  echo "apt not found. This script supports Debian/Ubuntu-based systems."
+  err "apt not found. This script supports Debian/Ubuntu-based systems."
   exit 1
 fi
 
 # Skip if already installed
-echo "[*] Checking if Brave Browser is already installed..."
+log "Checking if Brave Browser is already installed..."
 if dpkg -s brave-browser >/dev/null 2>&1 || command -v brave-browser >/dev/null 2>&1; then
-  echo " - brave-browser already installed. Skipping."
+  log "brave-browser already installed. Skipping."
   exit 0
 fi
 
-echo "[*] Ensuring prerequisites..."
+log "Ensuring prerequisites..."
 if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
-  echo " - Installing wget (no curl/wget found)"
+  log "Installing wget (no curl/wget found)"
   sudo apt-get update
   sudo apt-get install -y wget
 fi
 
-echo "[*] Preparing keyrings directory..."
+log "Preparing keyrings directory..."
 sudo install -d -m 0755 /etc/apt/keyrings
 
 ARCH=$(dpkg --print-architecture)
@@ -48,36 +91,34 @@ download_to() {
   fi
 }
 
-echo "[*] Ensuring Brave signing key..."
+log "Ensuring Brave signing key..."
 if [[ -f "$KEYRING_DEFAULT" ]]; then
   KEYRING="$KEYRING_DEFAULT"
-  echo " - Using existing keyring: $KEYRING"
+  log "Using existing keyring: $KEYRING"
 elif [[ -f "$KEYRING_LEGACY" ]]; then
   KEYRING="$KEYRING_LEGACY"
-  echo " - Using legacy keyring: $KEYRING"
+  log "Using legacy keyring: $KEYRING"
 else
-  echo " - Downloading keyring to $KEYRING_DEFAULT"
+  log "Downloading keyring to $KEYRING_DEFAULT"
   download_to "${BRAVE_URL}brave-browser-archive-keyring.gpg" "$KEYRING_DEFAULT"
   sudo chmod 0644 "$KEYRING_DEFAULT"
   KEYRING="$KEYRING_DEFAULT"
 fi
 
-echo "[*] Cleaning duplicate Brave APT sources..."
+log "Cleaning duplicate Brave APT sources..."
 sudo sed -i -E '/brave-browser-apt-release\.s3\.brave\.com/d' /etc/apt/sources.list || true
 # Remove any .list or .sources files referencing Brave to avoid duplicate entries with different Signed-By
 sudo bash -lc 'for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do [ -e "$f" ] || continue; if grep -qs "brave-browser-apt-release\.s3\.brave\.com" "$f"; then rm -f "$f"; fi; done'
 
-echo "[*] Adding Brave APT repository..."
+log "Adding Brave APT repository..."
 echo "deb [arch=$ARCH signed-by=$KEYRING] ${BRAVE_URL} stable main" | sudo tee "$LIST" >/dev/null
 sudo chmod 0644 "$LIST"
 
-echo "[*] Updating package lists..."
+log "Updating package lists..."
 sudo apt-get update
 
-echo "[*] Installing brave-browser..."
+log "Installing brave-browser..."
 sudo apt-get install -y brave-browser
 
-echo "----------------------------------------------"
-echo "Brave Browser installation complete."
-echo "Launch: brave-browser"
-echo "----------------------------------------------"
+log "Brave Browser installation complete."
+log "Launch: brave-browser"

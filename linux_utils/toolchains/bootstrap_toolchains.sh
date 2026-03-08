@@ -21,29 +21,50 @@ umask 022
 # - New shells may be required for PATH changes to take effect
 # -----------------------------------------------------------------------------
 
+COLOR_ENABLED=0
+if [[ "${FORCE_COLOR:-0}" == "1" || -t 1 ]]; then
+  COLOR_ENABLED=1
+fi
+
+TIMESTAMP_COLOR='\033[1;36m'
+ERROR_COLOR='\033[1;31m'
+NC='\033[0m'
+
+timestamp() {
+  local ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
+  if (( COLOR_ENABLED )); then
+    printf '%b%s%b' "$TIMESTAMP_COLOR" "$ts" "$NC"
+  else
+    printf '%s' "$ts"
+  fi
+}
+
 log() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+  printf '%s %s\n' "$(timestamp)" "$*"
 }
 
 warn() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: $*" >&2
+  printf '%s WARNING: %s\n' "$(timestamp)" "$*"
 }
 
 err() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $*" >&2
+  if (( COLOR_ENABLED )); then
+    printf '%s %bERROR:%b %s\n' "$(timestamp)" "$ERROR_COLOR" "$NC" "$*" >&2
+  else
+    printf '%s ERROR: %s\n' "$(timestamp)" "$*" >&2
+  fi
+}
+
+section() {
+  local title="$1"
+  printf '%s %s\n' "$(timestamp)" "=== $title ==="
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-
-# Detect apt environment only
-BACKEND="debian_apt"
 if have apt; then
-  log "Detected Debian/Ubuntu (apt) environment."
+  log 'Detected Debian/Ubuntu (apt) environment.'
 else
-  err "Unsupported Linux distribution: apt is required."
+  err 'Unsupported Linux distribution: apt is required.'
   exit 1
 fi
 
@@ -79,6 +100,7 @@ require_sudo() {
 # -------------------------------------------------------------------
 # 0) Prerequisites via apt
 # -------------------------------------------------------------------
+section "Installing prerequisites"
 install_prereqs() {
   require_sudo
   export DEBIAN_FRONTEND=noninteractive
@@ -86,24 +108,13 @@ install_prereqs() {
   sudo apt-get install -y \
     ca-certificates curl wget git unzip tar xz-utils gnupg \
     build-essential pkg-config make gcc
-}
-
-# Ensure git is installed and functional; install if missing.
-verify_git() {
-  if have git; then
-    log "git present: $(git --version 2>/dev/null || true)"
-  else
-    require_sudo
-    log "Installing git via apt..."
-    sudo apt-get update -y || true
-    sudo apt-get install -y git
-    log "git installed: $(git --version 2>/dev/null || true)"
-  fi
+  log "git present: $(git --version 2>/dev/null || true)"
 }
 
 # -------------------------------------------------------------------
-# 0.5) Terminal and container tools: tmux and podman
+# 0.5) Terminal and container tools: tmux, fzf, and podman
 # -------------------------------------------------------------------
+section "Installing terminal and container tools"
 
 install_tmux() {
   require_sudo
@@ -112,6 +123,16 @@ install_tmux() {
   else
     log "Installing tmux via apt..."
     sudo apt-get install -y tmux
+  fi
+}
+
+install_fzf() {
+  require_sudo
+  if have fzf || dpkg -s fzf >/dev/null 2>&1; then
+    log "fzf already installed: $(fzf --version 2>/dev/null || echo 'present')"
+  else
+    log "Installing fzf via apt..."
+    sudo apt-get install -y fzf
   fi
 }
 
@@ -158,6 +179,7 @@ install_podman() {
 
 # -------------------------------------------------------------------
 # 1) Node.js + Corepack (pnpm)
+section "Installing Node.js and Corepack"
 # Installs Node.js from the official tarball; per-user install if sudo is unavailable, otherwise /usr/local. Corepack enables pnpm.
 # -------------------------------------------------------------------
 install_node_corepack() {
@@ -374,8 +396,8 @@ EOF
 # -------------------------------------------------------------------
 log "Bootstrapping toolchains..."
 install_prereqs
-verify_git
 install_tmux
+install_fzf
 install_top
 install_podman
 install_node_corepack

@@ -1,53 +1,74 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 022
 # -----------------------------------------------------------------------------
 # linux_utils/monitor.sh
-# Tmux-based system monitor: side-by-side 'top' and 'watch -n <interval> -d sensors' (accepts fractional INTERVAL, e.g., 0.5 or .5)
-#
-# Replaces: linux_utils/temps.sh
-#
-# Prerequisites:
-# - tmux
-# - lm-sensors (provides 'sensors')
-# - procps (provides 'top' and 'watch')
-#
-# Usage:
-#   ./monitor.sh
-#   INTERVAL=2 ./monitor.sh    # refresh every 2 seconds (default: 1)
-#   INTERVAL=.5 ./monitor.sh   # refresh every 0.5 seconds (leading-dot accepted)
+# Tmux-based system monitor: side-by-side 'top' and 'watch -n <interval> -d sensors'.
+# Accepts fractional INTERVAL values such as 0.5 or .5.
 # -----------------------------------------------------------------------------
+
+COLOR_ENABLED=0
+if [[ "${FORCE_COLOR:-0}" == "1" || -t 1 ]]; then
+  COLOR_ENABLED=1
+fi
+
+TIMESTAMP_COLOR='\033[1;36m'
+ERROR_COLOR='\033[1;31m'
+NC='\033[0m'
+
+timestamp() {
+  local ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
+  if (( COLOR_ENABLED )); then
+    printf '%b%s%b' "$TIMESTAMP_COLOR" "$ts" "$NC"
+  else
+    printf '%s' "$ts"
+  fi
+}
+
+log() {
+  printf '%s %s\n' "$(timestamp)" "$*"
+}
+
+warn() {
+  printf '%s WARNING: %s\n' "$(timestamp)" "$*"
+}
+
+err() {
+  if (( COLOR_ENABLED )); then
+    printf '%s %bERROR:%b %s\n' "$(timestamp)" "$ERROR_COLOR" "$NC" "$*" >&2
+  else
+    printf '%s ERROR: %s\n' "$(timestamp)" "$*" >&2
+  fi
+}
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
 if ! have tmux; then
-  echo "ERROR: 'tmux' not found. Run the toolchain bootstrap or install tmux." >&2
+  err "'tmux' not found. Run the toolchain bootstrap or install tmux."
   exit 1
 fi
 if ! have sensors; then
-  echo "ERROR: 'sensors' not found. Install 'lm-sensors' (apt: sudo apt install lm-sensors)." >&2
+  err "'sensors' not found. Install 'lm-sensors' (apt: sudo apt install lm-sensors)."
   exit 1
 fi
 if ! have watch; then
-  echo "ERROR: 'watch' not found. Install 'procps' (apt: sudo apt install procps)." >&2
+  err "'watch' not found. Install 'procps' (apt: sudo apt install procps)."
   exit 1
 fi
 if ! have top; then
-  echo "ERROR: 'top' not found. Install 'procps' (apt: sudo apt install procps)." >&2
+  err "'top' not found. Install 'procps' (apt: sudo apt install procps)."
   exit 1
 fi
 
 INTERVAL="${INTERVAL:-1}"
-# Validate INTERVAL strictly numeric (integer or decimal, allow leading-dot like .5)
 if [[ ! "$INTERVAL" =~ ^([0-9]+([.][0-9]+)?|[.][0-9]+)$ ]]; then
-  echo "WARNING: Invalid INTERVAL '$INTERVAL'; defaulting to 1" >&2
-  INTERVAL="1"
+  warn "Invalid INTERVAL '$INTERVAL'; defaulting to 1"
+  INTERVAL='1'
 fi
 
-# If inside an existing tmux session, create/refresh a 'monitor' window for monitoring.
-# Otherwise, create/attach a dedicated 'monitor' session to keep a consistent name.
 if [[ -n "${TMUX:-}" ]]; then
-  # Inside an existing tmux session: create or replace a 'monitor' window
-  if tmux list-windows -F "#{window_name}" | grep -qx "monitor"; then
+  log "Refreshing tmux monitor window."
+  if tmux list-windows -F '#{window_name}' | grep -qx 'monitor'; then
     tmux kill-window -t :monitor || true
   fi
   tmux new-window -n monitor 'top'
@@ -55,7 +76,7 @@ if [[ -n "${TMUX:-}" ]]; then
   tmux select-layout -t :monitor even-horizontal
   tmux select-window -t :monitor
 else
-  # Outside tmux: start a dedicated 'monitor' session (reuse if exists)
+  log "Starting tmux monitor session."
   if tmux has-session -t monitor 2>/dev/null; then
     tmux attach -t monitor
   else
