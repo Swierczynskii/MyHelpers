@@ -2,10 +2,10 @@
 set -euo pipefail
 umask 022
 # -----------------------------------------------------------------------------
-# linux_utils/debian_apt/apps_installations/install_virtualbox.sh
-# Install VirtualBox via apt-get (distro repositories)
-# Prerequisites: sudo, apt-get, network access
-# Usage: ./install_virtualbox.sh
+# linux_utils/debian_apt/apps_installations/install_signal.sh
+# Install Signal Desktop via the official Signal APT repository.
+# Prerequisites: sudo, apt-get, gpg, curl or wget, network access
+# Usage: ./install_signal.sh
 # Non-interactive: export DEBIAN_FRONTEND=noninteractive
 # -----------------------------------------------------------------------------
 export DEBIAN_FRONTEND=noninteractive
@@ -96,29 +96,75 @@ title() {
 }
 
 if [[ "${SKIP_INSTALLER_TITLE:-0}" != "1" ]]; then
-  title "Installing VirtualBox"
+  title "Installing Signal Desktop"
 fi
 
-# VirtualBox installation via apt (from distro repositories)
-
-# Ensure apt is available
 if ! command -v apt >/dev/null 2>&1; then
   err "apt not found. This script supports Debian/Ubuntu-based systems."
   exit 1
 fi
 
-log "Checking if VirtualBox is already installed..."
-if dpkg -s virtualbox >/dev/null 2>&1 || command -v virtualbox >/dev/null 2>&1; then
-  log "virtualbox already installed. Skipping."
+ARCH="$(dpkg --print-architecture)"
+if [[ "$ARCH" != "amd64" ]]; then
+  err "Signal Desktop APT installation currently supports amd64 Debian/Ubuntu systems only. Detected architecture: $ARCH"
+  exit 1
+fi
+
+log "Checking if Signal Desktop is already installed..."
+if dpkg -s signal-desktop >/dev/null 2>&1 || command -v signal-desktop >/dev/null 2>&1; then
+  log "signal-desktop already installed. Skipping."
   exit 0
 fi
+
+log "Ensuring prerequisites..."
+if ! command -v gpg >/dev/null 2>&1 || { ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; }; then
+  sudo apt-get update
+  sudo apt-get install -y wget gpg
+fi
+
+download_to() {
+  local url="$1"
+  local dest="$2"
+
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$url" -o "$dest"
+  else
+    wget -qO "$dest" "$url"
+  fi
+}
+
+KEY_URL="https://updates.signal.org/desktop/apt/keys.asc"
+SOURCE_URL="https://updates.signal.org/static/desktop/apt/signal-desktop.sources"
+KEYRING="/usr/share/keyrings/signal-desktop-keyring.gpg"
+LIST="/etc/apt/sources.list.d/signal-desktop.sources"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+log "Preparing Signal keyring..."
+if [[ -f "$KEYRING" ]]; then
+  log "Using existing keyring: $KEYRING"
+else
+  KEY_ASC="$TMP_DIR/keys.asc"
+  KEY_GPG="$TMP_DIR/signal-desktop-keyring.gpg"
+  download_to "$KEY_URL" "$KEY_ASC"
+  gpg --dearmor < "$KEY_ASC" > "$KEY_GPG"
+  sudo install -m 0644 "$KEY_GPG" "$KEYRING"
+fi
+
+log "Cleaning duplicate Signal APT sources..."
+sudo sed -i -E '/updates\.signal\.org/d' /etc/apt/sources.list || true
+sudo bash -lc 'for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do [ -e "$f" ] || continue; if grep -qs "updates\.signal\.org" "$f"; then rm -f "$f"; fi; done'
+
+log "Adding Signal APT repository..."
+SOURCE_TMP="$TMP_DIR/signal-desktop.sources"
+download_to "$SOURCE_URL" "$SOURCE_TMP"
+sudo install -m 0644 "$SOURCE_TMP" "$LIST"
 
 log "Updating package lists..."
 sudo apt-get update
 
-log "Installing VirtualBox and related packages (dkms, qt, guest-additions iso)..."
-# Note: These are distro-provided packages. For Oracle's latest builds, use Oracle's repo instead.
-sudo apt-get install -y virtualbox virtualbox-dkms virtualbox-qt virtualbox-guest-additions-iso
+log "Installing signal-desktop..."
+sudo apt-get install -y signal-desktop
 
-log "VirtualBox installation complete."
-log "Launch: virtualbox"
+log "Signal Desktop installation complete."
+log "Launch: signal-desktop"

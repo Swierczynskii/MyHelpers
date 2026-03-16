@@ -30,11 +30,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 err() {
-    if [[ -t 2 ]]; then
-        printf '%bERROR:%b %s\n' "$RED" "$NC" "$*" >&2
-    else
-        printf 'ERROR: %s\n' "$*" >&2
-    fi
+    print_header "ERROR\n$*" "$RED" >&2
 }
 
 SELECT_MODE=0

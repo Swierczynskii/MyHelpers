@@ -52,6 +52,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
 3d) Writes setup log to repository `logs/setup.log`
    - Overwrites on each run (single log file, no log-file buildup)
    - Terminal output is colorized for readability, while the saved log remains plain text
+   - Major setup and installer phases use boxed terminal headers again for easier scanning
 
 ### Requirements
 - Debian/Ubuntu with apt
@@ -66,6 +67,7 @@ You can run any installer directly if you don’t want the full bundle.
   - VS Code: [linux_utils/debian_apt/apps_installations/install_code.sh](linux_utils/debian_apt/apps_installations/install_code.sh)
   - Firefox (APT; removes Snap Firefox if present): [linux_utils/debian_apt/apps_installations/install_firefox.sh](linux_utils/debian_apt/apps_installations/install_firefox.sh)
   - KeePassXC: [linux_utils/debian_apt/apps_installations/install_keepassxc.sh](linux_utils/debian_apt/apps_installations/install_keepassxc.sh)
+  - Signal Desktop (official Signal APT repository; amd64 only): [linux_utils/debian_apt/apps_installations/install_signal.sh](linux_utils/debian_apt/apps_installations/install_signal.sh)
   - Zed (official installer script): [linux_utils/debian_apt/apps_installations/install_zed.sh](linux_utils/debian_apt/apps_installations/install_zed.sh)
   - Spotify: [linux_utils/debian_apt/apps_installations/install_spotify.sh](linux_utils/debian_apt/apps_installations/install_spotify.sh)
   - VirtualBox: [linux_utils/debian_apt/apps_installations/install_virtualbox.sh](linux_utils/debian_apt/apps_installations/install_virtualbox.sh)
