@@ -8,6 +8,10 @@ umask 022
 # What it does:
 # - Installs prerequisite build tools via apt (requires sudo)
 # - Installs Node.js from official tarball, enables Corepack, activates pnpm
+# - Installs Rust via rustup to ~/.cargo/bin
+# - Installs Scala via official Coursier setup
+# - Installs Playwright globally via npm and downloads browser/system deps
+# - Installs Podman and terminal helpers via apt
 # - Respects NODE_VERSION (e.g., v22.11.0); otherwise uses latest LTS when possible
 # - Adds PATH entries idempotently to common shell profiles
 # - Installs uv (Astral) to ~/.local/bin
@@ -86,7 +90,8 @@ print_box() {
 }
 
 timestamp() {
-  local ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
+  local ts
+  ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
   if (( COLOR_ENABLED )); then
     printf '%b%s%b' "$TIMESTAMP_COLOR" "$ts" "$NC"
   else
@@ -118,6 +123,23 @@ else
   err 'Unsupported Linux distribution: apt is required.'
   exit 1
 fi
+
+apt_pkg_available() {
+  local pkg="$1"
+  local cand
+  cand="$(apt-cache policy "$pkg" 2>/dev/null | awk '/Candidate:/ {print $2}')"
+  [[ -n "$cand" && "$cand" != "(none)" ]]
+}
+
+get_coursier_url() {
+  case "$(uname -m)" in
+    x86_64) printf '%s\n' "https://github.com/coursier/coursier/releases/latest/download/cs-x86_64-pc-linux.gz" ;;
+    aarch64|arm64) printf '%s\n' "https://github.com/coursier/coursier/releases/latest/download/cs-aarch64-pc-linux.gz" ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 
 # Utilities
 append_unique_line() {
@@ -203,13 +225,6 @@ install_podman() {
     log "podman already installed: $(podman --version 2>/dev/null || echo 'present')"
     return
   fi
-
-  apt_pkg_available() {
-    local pkg="$1"
-    local cand
-    cand="$(apt-cache policy "$pkg" 2>/dev/null | awk '/Candidate:/ {print $2}')"
-    [[ -n "$cand" && "$cand" != "(none)" ]]
-  }
 
   local pkgs=("podman")
   local extras=(uidmap slirp4netns fuse-overlayfs netavark aardvark-dns podman-docker)
@@ -331,7 +346,7 @@ install_node_corepack() {
       sudo rm -rf "$target"
       sudo mv "$tmp/${base}" "$target"
       sudo ln -sfn "$target" "$root/node"
-      ensure_path_entry 'export PATH="/usr/local/node/bin:$PATH"'
+      ensure_path_entry "export PATH=\"/usr/local/node/bin:\$PATH\""
       export PATH="/usr/local/node/bin:$PATH"
     else
       local root="$HOME/.local"
@@ -341,7 +356,7 @@ install_node_corepack() {
       rm -rf "$target"
       mv "$tmp/${base}" "$target"
       ln -sfn "$target" "$root/node"
-      ensure_path_entry 'export PATH="$HOME/.local/node/bin:$PATH"'
+      ensure_path_entry "export PATH=\"\$HOME/.local/node/bin:\$PATH\""
       export PATH="$HOME/.local/node/bin:$PATH"
     fi
   fi
@@ -368,7 +383,40 @@ install_node_corepack() {
 }
 
 # -------------------------------------------------------------------
-# 2) uv (Astral official installer)
+# 2) Playwright
+# - Installs the Playwright CLI globally and downloads browser/system deps
+# -------------------------------------------------------------------
+install_playwright() {
+  if ! have npm; then
+    warn "npm not found; skipping Playwright installation."
+    return
+  fi
+
+  mkdir -p "$HOME/.local/bin"
+  export PATH="$HOME/.local/bin:$PATH"
+  ensure_path_entry "export PATH=\"\$HOME/.local/bin:\$PATH\""
+
+  if have playwright; then
+    log "Playwright already installed: $(playwright --version 2>/dev/null || echo 'present')"
+    return
+  fi
+
+  log "Installing Playwright globally via npm..."
+  npm install -g --prefix "$HOME/.local" @playwright/test
+  hash -r || true
+
+  if ! have playwright; then
+    warn "Playwright CLI was installed, but 'playwright' is not visible in PATH in this shell yet."
+    return
+  fi
+
+  log "Installing Playwright browsers and system dependencies..."
+  playwright install --with-deps chromium firefox webkit
+  log "Playwright installed: $(playwright --version || true)"
+}
+
+# -------------------------------------------------------------------
+# 3) uv (Astral official installer)
 # - Installs to ~/.local/bin by default
 # -------------------------------------------------------------------
 install_uv() {
@@ -404,18 +452,109 @@ install_uv() {
   sh "$tmp_uv"
 
   # Ensure ~/.local/bin on PATH
-  ensure_path_entry 'export PATH="$HOME/.local/bin:$PATH"'
+  ensure_path_entry "export PATH=\"\$HOME/.local/bin:\$PATH\""
   export PATH="$HOME/.local/bin:$PATH"
   log "uv installed: $(uv --version || true)"
 }
 
 # -------------------------------------------------------------------
-# 3) Shell prompt setup in ~/.bashrc
+# 4) Rust (rustup official installer)
+# - Installs rustup, cargo, and rustc to ~/.cargo/bin
+# -------------------------------------------------------------------
+install_rust() {
+  if have cargo && have rustc; then
+    log "Rust already installed: $(rustc --version 2>/dev/null || echo 'present')"
+    ensure_path_entry "export PATH=\"\$HOME/.cargo/bin:\$PATH\""
+    export PATH="$HOME/.cargo/bin:$PATH"
+    return
+  fi
+
+  log "Installing Rust with rustup..."
+  local rustup_url="${RUSTUP_INIT_URL:-https://sh.rustup.rs}"
+  local rustup_sha256_expected="${RUSTUP_INIT_SHA256:-}"
+  local tmp_rustup
+  tmp_rustup="$(mktemp)"
+  trap 'rm -f "$tmp_rustup"' RETURN
+
+  if ! curl -fsSL "$rustup_url" -o "$tmp_rustup"; then
+    err "Failed to download rustup installer from $rustup_url"
+    exit 1
+  fi
+
+  if [[ -n "$rustup_sha256_expected" ]]; then
+    local rustup_sha256_actual
+    rustup_sha256_actual="$(sha256sum "$tmp_rustup" | awk '{print $1}')"
+    if [[ "$rustup_sha256_actual" != "$rustup_sha256_expected" ]]; then
+      err "rustup installer SHA256 mismatch. Expected: $rustup_sha256_expected, Got: $rustup_sha256_actual"
+      exit 1
+    fi
+    log "rustup installer SHA256 verified."
+  else
+    warn "RUSTUP_INIT_SHA256 not set; proceeding without installer hash verification."
+  fi
+
+  sh "$tmp_rustup" -y --no-modify-path
+
+  ensure_path_entry "export PATH=\"\$HOME/.cargo/bin:\$PATH\""
+  export PATH="$HOME/.cargo/bin:$PATH"
+
+  if have rustc; then
+    log "Rust installed: $(rustc --version || true)"
+  else
+    warn "Rust install completed, but rustc is not on PATH until a new shell is opened."
+  fi
+}
+
+# -------------------------------------------------------------------
+# 5) Scala via official Coursier setup
+# - Installs Scala tools with cs setup, and a JVM if none is available
+# -------------------------------------------------------------------
+install_scala() {
+  if have cs && have scala && have scalac; then
+    log "Scala already installed: $(scala -version 2>&1 | head -n1 || echo 'present')"
+    return
+  fi
+
+  local cs_tmp
+  local cs_url
+  local cs_bin
+
+  if have cs; then
+    cs_bin="$(command -v cs)"
+  else
+    if ! cs_url="$(get_coursier_url)"; then
+      warn "Unsupported arch $(uname -m) for Coursier native launcher; skipping Scala installation."
+      return
+    fi
+
+    log "Installing Coursier launcher for Scala setup..."
+    cs_tmp="$(mktemp -d)"
+    trap 'rm -rf "$cs_tmp"' RETURN
+    cs_bin="$cs_tmp/cs"
+
+    if ! curl -fsSL "$cs_url" | gzip -d > "$cs_bin"; then
+      err "Failed to download or extract Coursier launcher from $cs_url"
+      exit 1
+    fi
+    chmod +x "$cs_bin"
+  fi
+
+  log "Installing Scala via official Coursier setup..."
+  "$cs_bin" setup --yes
+
+  if have scala; then
+    log "Scala installed: $(scala -version 2>&1 | head -n1 || true)"
+  else
+    warn "Scala package installation completed, but scala is not on PATH."
+  fi
+}
+
+# -------------------------------------------------------------------
+# 6) Shell prompt setup in ~/.bashrc
 # -------------------------------------------------------------------
 configure_bash_prompt() {
   local rc="$HOME/.bashrc"
   local BEGIN_MARK="# BEGIN MyHelpers prompt"
-  local END_MARK="# END MyHelpers prompt"
 
   mkdir -p "$HOME"
   touch "$rc"
@@ -452,6 +591,9 @@ install_fzf
 install_top
 install_podman
 install_node_corepack
+install_playwright
+install_rust
 install_uv
+install_scala
 configure_bash_prompt
 log "Toolchain bootstrap completed."

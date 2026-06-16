@@ -2,6 +2,21 @@
 
 A collection of utility scripts for Windows and Linux to streamline common tasks such as app installation, system upgrades, developer toolchain bootstrapping, display management, network switching, temperatures monitoring, and desktop setup.
 
+## AI
+
+This repository also includes AI setup helpers under [ai](ai):
+- [ai/install_ai.sh](ai/install_ai.sh) for Bash environments such as Linux, macOS, and WSL
+- [win_utils/ai/install_ai.ps1](win_utils/ai/install_ai.ps1) for PowerShell environments
+
+The AI installers:
+- install Claude Code and Codex when they are missing
+- install Antigravity CLI from the Bash installer when it is missing
+- install Claude Code with Anthropic's native installer
+- install Codex with OpenAI's official standalone installer
+- install Antigravity CLI with the official `https://antigravity.google/cli/install.sh` installer in Bash
+- support `--claude`, `--codex`, and `--antigravity` in Bash, and `-Claude` / `-Codex` in PowerShell
+- leave global config, agents, skills, and project-local files untouched
+
 ## Linux
 
 This repository provides a unified setup flow for Debian/Ubuntu (apt).
@@ -14,8 +29,17 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
 ### What the setup does
 1) Bootstraps developer toolchains via [linux_utils/toolchains/bootstrap_toolchains.sh](linux_utils/toolchains/bootstrap_toolchains.sh)
    - Node.js (installed via official tarball; Corepack enabled and pnpm activated)
+   - Rust (installed via official `rustup` into `~/.cargo/bin`)
+   - Scala (installed via the official Coursier `cs setup` flow; installs a JVM too when needed)
+   - Playwright (installed globally from npm, then browser binaries and Linux deps are installed with Playwright)
+   - Podman, tmux, fzf, and procps/top via apt
    - uv (Astral official installer)
    - Adds the necessary PATH entries idempotently to your shell profiles
+
+1a) Installs AI CLIs via [ai/install_ai.sh](ai/install_ai.sh)
+   - Claude Code (Anthropic official installer)
+   - Codex (OpenAI official standalone installer)
+   - Antigravity CLI (official `https://antigravity.google/cli/install.sh` installer)
 
 2) Runs the unified app installer orchestrator: [linux_utils/install_all.sh](linux_utils/install_all.sh)
    - Uses the Debian/Ubuntu backend and selects the matching apps_installations directory
@@ -65,17 +89,21 @@ You can run any installer directly if you don’t want the full bundle.
 - Debian/Ubuntu (apt):
   - Brave: [linux_utils/debian_apt/apps_installations/install_brave.sh](linux_utils/debian_apt/apps_installations/install_brave.sh)
   - VS Code: [linux_utils/debian_apt/apps_installations/install_code.sh](linux_utils/debian_apt/apps_installations/install_code.sh)
-  - Firefox (APT; removes Snap Firefox if present): [linux_utils/debian_apt/apps_installations/install_firefox.sh](linux_utils/debian_apt/apps_installations/install_firefox.sh)
+  - Google Chrome: [linux_utils/debian_apt/apps_installations/install_google_chrome.sh](linux_utils/debian_apt/apps_installations/install_google_chrome.sh)
   - KeePassXC: [linux_utils/debian_apt/apps_installations/install_keepassxc.sh](linux_utils/debian_apt/apps_installations/install_keepassxc.sh)
   - Signal Desktop (official Signal APT repository; amd64 only): [linux_utils/debian_apt/apps_installations/install_signal.sh](linux_utils/debian_apt/apps_installations/install_signal.sh)
+  - Wireshark: [linux_utils/debian_apt/apps_installations/install_wireshark.sh](linux_utils/debian_apt/apps_installations/install_wireshark.sh)
   - Zed (official installer script): [linux_utils/debian_apt/apps_installations/install_zed.sh](linux_utils/debian_apt/apps_installations/install_zed.sh)
-  - Spotify: [linux_utils/debian_apt/apps_installations/install_spotify.sh](linux_utils/debian_apt/apps_installations/install_spotify.sh)
   - VirtualBox: [linux_utils/debian_apt/apps_installations/install_virtualbox.sh](linux_utils/debian_apt/apps_installations/install_virtualbox.sh)
 
 ### Manual usage
 - Run only the toolchain bootstrap:
   - `bash linux_utils/toolchains/bootstrap_toolchains.sh`
   - Optional: override Node version by exporting `NODE_VERSION` (e.g., `NODE_VERSION=v22.11.0`)
+  - Optional: verify installed toolchains with `node -v`, `rustc --version`, `scala -version`, `playwright --version`, and `podman --version`
+- Run only the AI CLI installer:
+  - `bash ai/install_ai.sh`
+  - Limit to one CLI: `bash ai/install_ai.sh --claude`, `bash ai/install_ai.sh --codex`, or `bash ai/install_ai.sh --antigravity`
 - Run the Podman cleanup helper directly:
   - `./linux_utils/podman_cleanup.sh` to preview safe cleanup and confirm explicit removal of non-running containers plus `<none>:<none>` images
   - `./linux_utils/podman_cleanup.sh --select` to open an `fzf` selector and mark any containers/images to remove, including running containers or tagged images

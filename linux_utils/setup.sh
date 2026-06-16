@@ -4,7 +4,7 @@ umask 022
 # -----------------------------------------------------------------------------
 # linux_utils/setup.sh
 # Orchestrated Linux setup for Debian/Ubuntu (apt).
-# - Bootstraps developer toolchains (Node.js + Corepack/pnpm, uv)
+# - Bootstraps developer toolchains (Node.js + Corepack/pnpm, Rust, Scala, Playwright, Podman, uv)
 # - Runs per-backend tool/app installers inline (apt-only backend allowlist)
 # - Ensures lm-sensors and copies monitor.sh to $HOME
 # - Copies backend-specific upgrade.sh to $HOME
@@ -80,7 +80,8 @@ print_box() {
 }
 
 timestamp() {
-  local ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
+  local ts
+  ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
   if (( COLOR_ENABLED )); then
     printf '%b%s%b' "$TIMESTAMP_COLOR" "$ts" "$NC"
   else
@@ -308,7 +309,7 @@ else
 fi
 validate_backend "$BACKEND"
 
-# 1) Bootstrap developer toolchains (Node.js + Corepack/pnpm, uv)
+# 1) Bootstrap developer toolchains (Node.js + Corepack/pnpm, Rust, Scala, Playwright, Podman, uv)
 section "Bootstrapping toolchains"
 TOOLCHAIN_BOOTSTRAP="$SCRIPT_DIR/toolchains/bootstrap_toolchains.sh"
 if [[ -f "$TOOLCHAIN_BOOTSTRAP" ]]; then
@@ -316,6 +317,16 @@ if [[ -f "$TOOLCHAIN_BOOTSTRAP" ]]; then
   BACKEND="$BACKEND" bash "$TOOLCHAIN_BOOTSTRAP"
 else
   log "Toolchain bootstrap script not found at $TOOLCHAIN_BOOTSTRAP (skipping)."
+fi
+
+# 1a) Install AI CLIs after Node/npm toolchains are available
+section "Installing AI CLIs"
+AI_INSTALLER="$REPO_ROOT/ai/install_ai.sh"
+if [[ -x "$AI_INSTALLER" ]]; then
+  log "Installing AI CLIs via $AI_INSTALLER"
+  bash "$AI_INSTALLER"
+else
+  log "AI installer missing or not executable at $AI_INSTALLER (skipping)."
 fi
 
 # 2) Run unified installer orchestrator (inline)
