@@ -4,7 +4,22 @@ umask 022
 # -----------------------------------------------------------------------------
 # linux_utils/debian_apt/upgrade.sh
 # Non-interactive APT upgrade helper for Debian/Ubuntu.
-# Performs: update, upgrade -y, autoremove -y.
+#
+# Default (no flags): apt-get update, upgrade -y, autoremove -y.
+#
+# Optional tool upgrades run AFTER the apt steps when requested via flags:
+#   --all          apt steps + every tool below
+#   --ai           AI CLIs: claude, codex, antigravity
+#   --claude       Claude Code CLI
+#   --codex        Codex CLI
+#   --antigravity  Antigravity CLI (antigravity/agy)
+#   --rust         Rust toolchain (rustup update)
+#   --uv           uv (uv self update)
+#   --scala        Scala / Coursier-managed apps (cs update)
+#   -h, --help     Show usage and exit
+#
+# Tool upgrades are user-scoped (no sudo) and skip gracefully if the tool
+# isn't installed.
 # -----------------------------------------------------------------------------
 export DEBIAN_FRONTEND=noninteractive
 
@@ -93,6 +108,134 @@ title() {
   print_box "$*" "$TITLE_COLOR"
 }
 
+guard_against_sudo() {
+  if [[ "${EUID:-$(id -u)}" -eq 0 || -n "${SUDO_USER:-}" ]]; then
+    err "Run this script without sudo. It calls sudo only for the apt steps, and tool upgrades must run as your normal user (running them as root corrupts ownership of ~/.cargo, ~/.local, and Coursier dirs)."
+    exit 1
+  fi
+}
+
+# Run an update command for a tool, skipping gracefully when it isn't installed.
+# Usage: update_tool <detect-cmd> <label> <cmd> [args...]
+update_tool() {
+  local cmd="$1"
+  local label="$2"
+  shift 2
+
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    log "$label not installed; skipping."
+    return 0
+  fi
+
+  log "Updating $label..."
+  if ! "$@"; then
+    err "$label update failed."
+    return 1
+  fi
+}
+
+# Dispatch a single tool name to its concrete update command.
+run_tool_update() {
+  local tool="$1"
+
+  case "$tool" in
+    claude) update_tool claude 'Claude Code' claude update ;;
+    codex) update_tool codex 'Codex' codex update ;;
+    antigravity)
+      if command -v antigravity >/dev/null 2>&1; then
+        update_tool antigravity 'Antigravity CLI' antigravity update
+      else
+        update_tool agy 'Antigravity CLI' agy update
+      fi
+      ;;
+    rust) update_tool rustup 'Rust (rustup)' rustup update ;;
+    uv) update_tool uv 'uv' uv self update ;;
+    scala)
+      # The `cs` launcher execs a sibling `.cs.aux` resolved from $0 without
+      # dereferencing symlinks, so a ~/.local/bin/cs symlink breaks it. Resolve
+      # to the real launcher path so $0 points next to its .cs.aux.
+      if command -v cs >/dev/null 2>&1; then
+        local cs_real
+        cs_real="$(readlink -f "$(command -v cs)")"
+        update_tool "$cs_real" 'Scala (Coursier apps)' "$cs_real" update
+      else
+        log 'Scala (Coursier apps) not installed; skipping.'
+      fi
+      ;;
+    *)
+      err "Unknown tool: $tool"
+      return 1
+      ;;
+  esac
+}
+
+# Canonical order in which tools run; also the set of valid --<tool> flags.
+ALL_TOOLS=(claude codex antigravity rust uv scala)
+AI_TOOLS=(claude codex antigravity)
+
+usage() {
+  cat <<'EOF'
+Usage: upgrade.sh [FLAGS]
+
+Default (no flags): apt-get update, upgrade -y, autoremove -y.
+
+Flags add tool upgrades AFTER the apt steps:
+  --all          apt steps + every tool below
+  --ai           AI CLIs: claude, codex, antigravity
+  --claude       Claude Code CLI
+  --codex        Codex CLI
+  --antigravity  Antigravity CLI (antigravity/agy)
+  --rust         Rust toolchain (rustup update)
+  --uv           uv (uv self update)
+  --scala        Scala / Coursier-managed apps (cs update)
+  -h, --help     Show this help and exit
+EOF
+}
+
+# Parse flags into a dedup set of requested tools (keys of `requested`).
+declare -A requested=()
+
+add_tool() { requested["$1"]=1; }
+
+while (( $# )); do
+  case "$1" in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --all)
+      for t in "${ALL_TOOLS[@]}"; do add_tool "$t"; done
+      ;;
+    --ai)
+      for t in "${AI_TOOLS[@]}"; do add_tool "$t"; done
+      ;;
+    --*)
+      tool="${1#--}"
+      matched=0
+      for t in "${ALL_TOOLS[@]}"; do
+        if [[ "$t" == "$tool" ]]; then
+          add_tool "$t"
+          matched=1
+          break
+        fi
+      done
+      if (( ! matched )); then
+        err "Unknown flag: $1"
+        usage >&2
+        exit 1
+      fi
+      ;;
+    *)
+      err "Unexpected argument: $1"
+      usage >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+guard_against_sudo
+
 title 'Starting system upgrade'
 
 log 'Running apt-get update...'
@@ -111,6 +254,21 @@ log 'Running apt-get autoremove -y...'
 if ! sudo apt-get autoremove -y; then
   err 'apt-get autoremove failed.'
   exit 1
+fi
+
+# Run requested tool upgrades in canonical order, after the apt steps.
+if (( ${#requested[@]} )); then
+  log 'Updating requested tools...'
+  tool_update_failed=0
+  for tool in "${ALL_TOOLS[@]}"; do
+    if [[ -n "${requested[$tool]:-}" ]]; then
+      run_tool_update "$tool" || tool_update_failed=1
+    fi
+  done
+  if (( tool_update_failed )); then
+    err 'One or more tool updates failed.'
+    exit 1
+  fi
 fi
 
 title $'System upgrade completed successfully.\nYour system is now up to date.'
