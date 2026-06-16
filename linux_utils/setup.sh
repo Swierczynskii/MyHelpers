@@ -3,11 +3,12 @@ set -euo pipefail
 umask 022
 # -----------------------------------------------------------------------------
 # linux_utils/setup.sh
-# Orchestrated Linux setup for Debian/Ubuntu (apt).
-# - Bootstraps developer toolchains (Node.js + Corepack/pnpm, Rust, Scala, Playwright, Podman, uv)
-# - Runs per-backend tool/app installers inline (apt-only backend allowlist)
-# - Ensures lm-sensors and copies monitor.sh to $HOME
+# Orchestrated Linux setup for a single user on Debian/Ubuntu.
+# - Bootstraps user-scoped developer toolchains (Node.js + Corepack/pnpm, Rust, Scala, Playwright, uv)
+# - Installs AI CLIs and syncs user config
+# - Optionally runs system package/app installers with --system
 # - Copies backend-specific upgrade.sh to $HOME
+# - Copies monitor.sh and podman_cleanup.sh to $HOME
 # - Optionally configures persistent battery thresholds (default 20/80) when supported
 # Safe to re-run; individual steps are idempotent.
 # -----------------------------------------------------------------------------
@@ -20,6 +21,8 @@ if (( COLOR_ENABLED )); then
   export FORCE_COLOR=1
 fi
 
+SYSTEM_MODE="${MYHELPERS_SYSTEM:-0}"
+
 TIMESTAMP_COLOR='\033[1;36m'
 TITLE_COLOR='\033[0;34m'
 ERROR_COLOR='\033[1;31m'
@@ -27,6 +30,10 @@ NC='\033[0m'
 
 strip_ansi() {
   sed 's/\x1b\[[0-9;]*m//g'
+}
+
+sanitize_log_stream() {
+  sed -u -E $'s/\r//g; s/\x1B\\[[0-9;?]*[ -/]*[@-~]//g'
 }
 
 repeat_char() {
@@ -119,6 +126,58 @@ require_cmd() {
   local cmd="$1"
   if ! command -v "$cmd" >/dev/null 2>&1; then
     err "Required command not found: $cmd"
+    exit 1
+  fi
+}
+
+usage() {
+  cat <<'EOF'
+Usage: ./linux_utils/setup.sh [--user|--system]
+
+Options:
+  --user      Run user-scoped setup only (default)
+  --system    Also run apt app installers, monitor prerequisites, and battery service setup
+  -h, --help  Show this help message
+
+Run this script as your normal user. It calls sudo only for explicit --system steps.
+EOF
+}
+
+parse_args() {
+  while (($#)); do
+    case "$1" in
+      --user|--user-only)
+        SYSTEM_MODE=0
+        ;;
+      --system)
+        SYSTEM_MODE=1
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        err "Unknown option: $1"
+        usage >&2
+        exit 1
+        ;;
+    esac
+    shift
+  done
+
+  case "${SYSTEM_MODE}" in
+    1|true|TRUE|yes|YES) SYSTEM_MODE=1 ;;
+    0|false|FALSE|no|NO|'') SYSTEM_MODE=0 ;;
+    *)
+      err "Invalid MYHELPERS_SYSTEM value: ${SYSTEM_MODE}. Use 0 or 1."
+      exit 1
+      ;;
+  esac
+}
+
+guard_against_sudo() {
+  if [[ "${EUID:-$(id -u)}" -eq 0 || -n "${SUDO_USER:-}" ]]; then
+    err "Run this script without sudo. It installs user files into your home directory and calls sudo only for explicit --system steps."
     exit 1
   fi
 }
@@ -266,14 +325,16 @@ configure_battery_thresholds() {
   fi
 }
 
+parse_args "$@"
+guard_against_sudo
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$REPO_ROOT/logs"
 SETUP_LOG="$LOG_DIR/setup.log"
-
 mkdir -p "$LOG_DIR"
 # Overwrite one setup log per run while still streaming to terminal.
-exec > >(tee >(sed -E 's/\x1B\[[0-9;]*[mK]//g' > "$SETUP_LOG")) 2>&1
+exec > >(tee >(sanitize_log_stream > "$SETUP_LOG")) 2>&1
 section "Setup started"
 log "Writing setup log to: $SETUP_LOG"
 
@@ -289,9 +350,14 @@ fi
 
 # Preconditions
 require_cmd bash
-if ! command -v sudo >/dev/null 2>&1; then
+if (( SYSTEM_MODE )) && ! command -v sudo >/dev/null 2>&1; then
   err "sudo is not available. Installers typically require privilege escalation."
   exit 1
+fi
+if (( SYSTEM_MODE )); then
+  log "System mode selected; apt app installers and system configuration steps are enabled."
+else
+  log "User mode selected; apt app installers and system configuration steps are disabled."
 fi
 
 # Backend detection and validation
@@ -314,7 +380,11 @@ section "Bootstrapping toolchains"
 TOOLCHAIN_BOOTSTRAP="$SCRIPT_DIR/toolchains/bootstrap_toolchains.sh"
 if [[ -f "$TOOLCHAIN_BOOTSTRAP" ]]; then
   log "Bootstrapping developer toolchains via $TOOLCHAIN_BOOTSTRAP"
-  BACKEND="$BACKEND" bash "$TOOLCHAIN_BOOTSTRAP"
+  if (( SYSTEM_MODE )); then
+    BACKEND="$BACKEND" bash "$TOOLCHAIN_BOOTSTRAP" --system
+  else
+    BACKEND="$BACKEND" bash "$TOOLCHAIN_BOOTSTRAP" --user
+  fi
 else
   log "Toolchain bootstrap script not found at $TOOLCHAIN_BOOTSTRAP (skipping)."
 fi
@@ -322,47 +392,52 @@ fi
 # 1a) Install AI CLIs after Node/npm toolchains are available
 section "Installing AI CLIs"
 AI_INSTALLER="$REPO_ROOT/ai/install_ai.sh"
-if [[ -x "$AI_INSTALLER" ]]; then
+if [[ -f "$AI_INSTALLER" ]]; then
   log "Installing AI CLIs via $AI_INSTALLER"
   bash "$AI_INSTALLER"
 else
-  log "AI installer missing or not executable at $AI_INSTALLER (skipping)."
+  log "AI installer missing at $AI_INSTALLER (skipping)."
 fi
 
-# 2) Run unified installer orchestrator (inline)
-section "Running installers"
-APPS_DIR="$SCRIPT_DIR/$BACKEND/apps_installations"
-TOOLS_DIR="$SCRIPT_DIR/$BACKEND/tools_installations"
+# 2) Run system installers only when explicitly requested
+if (( SYSTEM_MODE )); then
+  section "Running system installers"
+  APPS_DIR="$SCRIPT_DIR/$BACKEND/apps_installations"
+  TOOLS_DIR="$SCRIPT_DIR/$BACKEND/tools_installations"
 
-if [[ ! -d "$APPS_DIR" ]]; then
-  err "apps_installations directory not found at $APPS_DIR"
-  exit 1
-fi
+  if [[ ! -d "$APPS_DIR" ]]; then
+    err "apps_installations directory not found at $APPS_DIR"
+    exit 1
+  fi
 
-log "Starting installation orchestrator for backend: $BACKEND"
-log "Apps directory: $APPS_DIR"
+  log "Starting installation orchestrator for backend: $BACKEND"
+  log "Apps directory: $APPS_DIR"
 
-# Tools phase
-if [[ -d "$TOOLS_DIR" ]]; then
-  log "Processing tools from: $TOOLS_DIR"
-  run_installers_from_dir "$TOOLS_DIR"
+  # Tools phase
+  if [[ -d "$TOOLS_DIR" ]]; then
+    log "Processing tools from: $TOOLS_DIR"
+    run_installers_from_dir "$TOOLS_DIR"
+  else
+    log "No tools_installations directory at $TOOLS_DIR (skipping tools)."
+  fi
+
+  # Apps phase
+  run_installers_from_dir "$APPS_DIR" 1 1
+
+  log "All installation scripts have been executed successfully."
+
+  # 2a) Ensure lm-sensors is installed for temperature monitoring (apt-only)
+  section "Installing monitor prerequisites"
+  if ! dpkg -s lm-sensors >/dev/null 2>&1; then
+    log "Installing lm-sensors (apt-get)..."
+    sudo apt-get update || true
+    sudo apt-get install -y lm-sensors
+  else
+    log "lm-sensors already installed."
+  fi
 else
-  log "No tools_installations directory at $TOOLS_DIR (skipping tools)."
-fi
-
-# Apps phase
-run_installers_from_dir "$APPS_DIR" 1 1
-
-log "All installation scripts have been executed successfully."
-
-# 2a) Ensure lm-sensors is installed for temperature monitoring (apt-only)
-section "Installing monitor prerequisites"
-if ! dpkg -s lm-sensors >/dev/null 2>&1; then
-  log "Installing lm-sensors (apt-get)..."
-  sudo apt-get update || true
-  sudo apt-get install -y lm-sensors
-else
-  log "lm-sensors already installed."
+  section "Skipping system installers"
+  log "Run './linux_utils/setup.sh --system' to install apt apps, lm-sensors, Podman, and battery threshold persistence."
 fi
 
 # 3) Copy upgrade helper from backend to $HOME (force overwrite, ensure executable)
@@ -382,8 +457,13 @@ DEST_PODMAN_CLEANUP="$HOME/podman_cleanup.sh"
 deploy_helper_script "$SRC_PODMAN_CLEANUP" "$DEST_PODMAN_CLEANUP" 'podman_cleanup.sh'
 
 # 3c) Configure persistent battery thresholds (best effort; default 20/80)
-section "Configuring battery thresholds"
-configure_battery_thresholds
+if (( SYSTEM_MODE )); then
+  section "Configuring battery thresholds"
+  configure_battery_thresholds
+else
+  section "Skipping battery thresholds"
+  log "Battery threshold persistence is a system configuration step; skipped in user mode."
+fi
 
 section "Setup completed"
 log "SUCCESS: Setup completed successfully for ${OS_NAME:-Linux} using backend '$BACKEND'."

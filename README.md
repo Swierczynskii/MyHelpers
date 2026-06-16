@@ -22,17 +22,19 @@ The AI installers:
 This repository provides a unified setup flow for Debian/Ubuntu (apt).
 
 ### Quick start
-- Make the setup script executable and run it:
+- Make the setup script executable and run the user-scoped setup:
   - `chmod +x ./linux_utils/setup.sh`
   - `./linux_utils/setup.sh`
+- To also install system packages, desktop apps, Podman, Playwright system dependencies, lm-sensors, and battery threshold persistence:
+  - `./linux_utils/setup.sh --system`
 
 ### What the setup does
 1) Bootstraps developer toolchains via [linux_utils/toolchains/bootstrap_toolchains.sh](linux_utils/toolchains/bootstrap_toolchains.sh)
-   - Node.js (installed via official tarball; Corepack enabled and pnpm activated)
+   - Node.js (installed via official tarball into `~/.local/node`; Corepack enabled and pnpm activated)
    - Rust (installed via official `rustup` into `~/.cargo/bin`)
-   - Scala (installed via the official Coursier `cs setup` flow; installs a JVM too when needed)
-   - Playwright (installed globally from npm, then browser binaries and Linux deps are installed with Playwright)
-   - Podman, tmux, fzf, and procps/top via apt
+   - Scala (installed via the official Coursier `cs setup` flow into `~/.local/bin`; older Coursier-managed apps under `~/.local/share/coursier/bin` are linked there automatically on reruns; installs a JVM too when needed)
+   - Playwright (installed globally from npm, then browser binaries are installed for the user)
+   - With `--system`: Podman, tmux, fzf, procps/top, apt prerequisites, and Playwright Linux deps are installed via apt
    - uv (Astral official installer)
    - Adds the necessary PATH entries idempotently to your shell profiles
 
@@ -41,7 +43,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
    - Codex (OpenAI official standalone installer)
    - Antigravity CLI (official `https://antigravity.google/cli/install.sh` installer)
 
-2) Runs the unified app installer orchestrator: [linux_utils/install_all.sh](linux_utils/install_all.sh)
+2) With `--system`, runs the app installer orchestrator inline from [linux_utils/setup.sh](linux_utils/setup.sh)
    - Uses the Debian/Ubuntu backend and selects the matching apps_installations directory
    - Optional: runs backend/tools_installations/install_*.sh first if such directory exists
    - Executes each app installer idempotently; installers skip when the app is already installed
@@ -52,7 +54,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
      - Debian/Ubuntu: [linux_utils/debian_apt/upgrade.sh](linux_utils/debian_apt/upgrade.sh)
 
 3a) Ensures system monitor helper is available
-   - Installs lm-sensors if missing
+   - With `--system`: installs lm-sensors if missing
    - Copies [linux_utils/monitor.sh](linux_utils/monitor.sh) to `$HOME/monitor.sh` and marks it executable (idempotent)
    - Usage after setup: `~/monitor.sh` (tmux split: top + watch sensors; requires lm-sensors, tmux, procps/procps-ng)
 
@@ -65,7 +67,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
    - `fzf` is installed by the bootstrap/setup flow and used as the only selector backend
    - `DRY_RUN=1` shows the preview only and deletes nothing
 
-3c) Configures persistent battery thresholds (best-effort)
+3c) With `--system`, configures persistent battery thresholds (best-effort)
    - Uses [linux_utils/battery_thresholds/persistence/install_service.sh](linux_utils/battery_thresholds/persistence/install_service.sh)
    - Interactive prompt:
      - Keep defaults `20%` start and `80%` end
@@ -75,12 +77,13 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
 
 3d) Writes setup log to repository `logs/setup.log`
    - Overwrites on each run (single log file, no log-file buildup)
-   - Terminal output is colorized for readability, while the saved log remains plain text
+   - Terminal output is colorized for readability, while the saved log remains plain text with terminal control sequences stripped
    - Major setup and installer phases use boxed terminal headers again for easier scanning
 
 ### Requirements
 - Debian/Ubuntu with apt
-- sudo privileges for system packages are recommended/required for most installers
+- Run setup scripts as your normal user; do not run them with `sudo`
+- sudo privileges are required only when using `--system` or running apt/system installers directly
 - Internet access for package and toolchain downloads
 
 ### Per-app installers (idempotent)
@@ -99,7 +102,9 @@ You can run any installer directly if you don’t want the full bundle.
 ### Manual usage
 - Run only the toolchain bootstrap:
   - `bash linux_utils/toolchains/bootstrap_toolchains.sh`
+  - Add `--system` to install apt prerequisites, Podman, terminal helpers, and Playwright system dependencies
   - Optional: override Node version by exporting `NODE_VERSION` (e.g., `NODE_VERSION=v22.11.0`)
+  - Optional: set `SYSTEM_NODE=1` with `--system` to install Node under `/usr/local/node` instead of `~/.local/node`
   - Optional: verify installed toolchains with `node -v`, `rustc --version`, `scala -version`, `playwright --version`, and `podman --version`
 - Run only the AI CLI installer:
   - `bash ai/install_ai.sh`
@@ -109,10 +114,10 @@ You can run any installer directly if you don’t want the full bundle.
   - `./linux_utils/podman_cleanup.sh --select` to open an `fzf` selector and mark any containers/images to remove, including running containers or tagged images
   - `DRY_RUN=1 ./linux_utils/podman_cleanup.sh` to preview safe cleanup without deleting anything
   - `AUTO_APPROVE=1 ./linux_utils/podman_cleanup.sh` for non-interactive safe cleanup
-- Run only the app installers:
-  - `bash linux_utils/install_all.sh`
-- Force a backend (for testing):
-  - `BACKEND=debian_apt bash linux_utils/install_all.sh`
+- Run system app installers through setup:
+  - `./linux_utils/setup.sh --system`
+- Run an individual app installer directly:
+  - `bash linux_utils/debian_apt/apps_installations/install_code.sh`
 
 ### Intel power modes helpers
 Located under [linux_utils/intel](linux_utils/intel):

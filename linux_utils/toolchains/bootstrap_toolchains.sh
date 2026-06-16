@@ -3,15 +3,14 @@ set -euo pipefail
 umask 022
 # -----------------------------------------------------------------------------
 # linux_utils/toolchains/bootstrap_toolchains.sh
-# Bootstrap developer toolchains for Debian/Ubuntu (apt)
+# Bootstrap developer toolchains for a single user.
 #
 # What it does:
-# - Installs prerequisite build tools via apt (requires sudo)
-# - Installs Node.js from official tarball, enables Corepack, activates pnpm
+# - Installs Node.js from official tarball into ~/.local, enables Corepack, activates pnpm
 # - Installs Rust via rustup to ~/.cargo/bin
 # - Installs Scala via official Coursier setup
-# - Installs Playwright globally via npm and downloads browser/system deps
-# - Installs Podman and terminal helpers via apt
+# - Installs Playwright globally via npm and downloads browser binaries
+# - Optionally installs system prerequisites, Podman, and terminal helpers via apt with --system
 # - Respects NODE_VERSION (e.g., v22.11.0); otherwise uses latest LTS when possible
 # - Adds PATH entries idempotently to common shell profiles
 # - Installs uv (Astral) to ~/.local/bin
@@ -29,6 +28,8 @@ COLOR_ENABLED=0
 if [[ "${FORCE_COLOR:-0}" == "1" || -t 1 ]]; then
   COLOR_ENABLED=1
 fi
+
+SYSTEM_MODE="${MYHELPERS_SYSTEM:-0}"
 
 TIMESTAMP_COLOR='\033[1;36m'
 TITLE_COLOR='\033[0;34m'
@@ -117,12 +118,58 @@ section() {
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
-if have apt; then
-  log 'Detected Debian/Ubuntu (apt) environment.'
-else
-  err 'Unsupported Linux distribution: apt is required.'
-  exit 1
-fi
+
+usage() {
+  cat <<'EOF'
+Usage: bash linux_utils/toolchains/bootstrap_toolchains.sh [--user|--system]
+
+Options:
+  --user      Install only user-scoped toolchains and shell config (default)
+  --system    Also install apt prerequisites, terminal tools, Podman, and Playwright system deps
+  -h, --help  Show this help message
+
+Run this script as your normal user. It calls sudo only for explicit --system steps.
+EOF
+}
+
+parse_args() {
+  while (($#)); do
+    case "$1" in
+      --user|--user-only)
+        SYSTEM_MODE=0
+        ;;
+      --system)
+        SYSTEM_MODE=1
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        err "Unknown option: $1"
+        usage >&2
+        exit 1
+        ;;
+    esac
+    shift
+  done
+
+  case "${SYSTEM_MODE}" in
+    1|true|TRUE|yes|YES) SYSTEM_MODE=1 ;;
+    0|false|FALSE|no|NO|'') SYSTEM_MODE=0 ;;
+    *)
+      err "Invalid MYHELPERS_SYSTEM value: ${SYSTEM_MODE}. Use 0 or 1."
+      exit 1
+      ;;
+  esac
+}
+
+guard_against_sudo() {
+  if [[ "${EUID:-$(id -u)}" -eq 0 || -n "${SUDO_USER:-}" ]]; then
+    err "Run this script without sudo. It installs user toolchains into your home directory and calls sudo only for explicit --system steps."
+    exit 1
+  fi
+}
 
 apt_pkg_available() {
   local pkg="$1"
@@ -170,12 +217,36 @@ require_sudo() {
   fi
 }
 
-# -------------------------------------------------------------------
-# 0) Prerequisites via apt
-# -------------------------------------------------------------------
-section "Installing prerequisites"
+require_cmd() {
+  local cmd="$1"
+  if ! have "$cmd"; then
+    err "Required command not found: $cmd"
+    exit 1
+  fi
+}
+
+require_user_prereqs() {
+  local missing=()
+  local cmd
+
+  for cmd in awk curl grep gzip sed sha256sum tar xz; do
+    if ! have "$cmd"; then
+      missing+=("$cmd")
+    fi
+  done
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    err "Missing required user-mode commands: ${missing[*]}. Install them with your package manager, or rerun with --system to install apt prerequisites."
+    exit 1
+  fi
+}
+
 install_prereqs() {
   require_sudo
+  if ! have apt-get; then
+    err "apt-get is required for --system package installation."
+    exit 1
+  fi
   export DEBIAN_FRONTEND=noninteractive
   sudo apt-get update -y
   sudo apt-get install -y \
@@ -183,11 +254,6 @@ install_prereqs() {
     build-essential pkg-config make gcc
   log "git present: $(git --version 2>/dev/null || true)"
 }
-
-# -------------------------------------------------------------------
-# 0.5) Terminal and container tools: tmux, fzf, and podman
-# -------------------------------------------------------------------
-section "Installing terminal and container tools"
 
 install_tmux() {
   require_sudo
@@ -243,11 +309,6 @@ install_podman() {
   sudo apt-get install -y "${pkgs[@]}"
 }
 
-# -------------------------------------------------------------------
-# 1) Node.js + Corepack (pnpm)
-section "Installing Node.js and Corepack"
-# Installs Node.js from the official tarball; per-user install if sudo is unavailable, otherwise /usr/local. Corepack enables pnpm.
-# -------------------------------------------------------------------
 install_node_corepack() {
   # Install latest LTS Node.js securely (official tarball + SHA256) and enable pnpm via Corepack.
   if have node; then
@@ -338,7 +399,11 @@ install_node_corepack() {
     # Stage extraction
     tar -C "$tmp" -xf "$tmp/${tarball}"
 
-    if have sudo; then
+    if [[ "${SYSTEM_NODE:-0}" == "1" ]]; then
+      if (( ! SYSTEM_MODE )); then
+        err "SYSTEM_NODE=1 requires --system because it writes Node.js under /usr/local."
+        exit 1
+      fi
       require_sudo
       local root="/usr/local"
       local target="$root/${base}"
@@ -410,8 +475,13 @@ install_playwright() {
     return
   fi
 
-  log "Installing Playwright browsers and system dependencies..."
-  playwright install --with-deps chromium firefox webkit
+  if (( SYSTEM_MODE )); then
+    log "Installing Playwright browsers and system dependencies..."
+    playwright install --with-deps chromium firefox webkit
+  else
+    log "Installing Playwright browsers for this user..."
+    playwright install chromium firefox webkit
+  fi
   log "Playwright installed: $(playwright --version || true)"
 }
 
@@ -505,11 +575,39 @@ install_rust() {
   fi
 }
 
+link_coursier_apps_into_local_bin() {
+  local source_dir="$1"
+  local target_dir="$2"
+  local app
+  local apps=(amm coursier cs sbt sbtn scala scala-cli scalac scalafmt)
+
+  [[ -d "$source_dir" ]] || return 0
+
+  mkdir -p "$target_dir"
+  for app in "${apps[@]}"; do
+    if [[ -x "$source_dir/$app" ]]; then
+      ln -sfn "$source_dir/$app" "$target_dir/$app"
+    fi
+  done
+}
+
 # -------------------------------------------------------------------
 # 5) Scala via official Coursier setup
 # - Installs Scala tools with cs setup, and a JVM if none is available
 # -------------------------------------------------------------------
 install_scala() {
+  local scala_bin_dir="$HOME/.local/bin"
+  local cs_install_dir="$HOME/.local/share/coursier/bin"
+
+  ensure_path_entry "export PATH=\"\$HOME/.local/bin:\$PATH\""
+  export PATH="$scala_bin_dir:$PATH"
+  # Coursier installs its managed apps under ~/.local/share/coursier/bin. Put that
+  # dir on PATH directly so Scala tools are visible even if the symlink step below
+  # does not run (e.g. cs setup ordering). The symlinks remain a convenience.
+  ensure_path_entry "export PATH=\"\$HOME/.local/share/coursier/bin:\$PATH\""
+  export PATH="$cs_install_dir:$PATH"
+  link_coursier_apps_into_local_bin "$cs_install_dir" "$scala_bin_dir"
+
   if have cs && have scala && have scalac; then
     log "Scala already installed: $(scala -version 2>&1 | head -n1 || echo 'present')"
     return
@@ -540,12 +638,14 @@ install_scala() {
   fi
 
   log "Installing Scala via official Coursier setup..."
-  "$cs_bin" setup --yes
+  "$cs_bin" setup --yes --quiet --install-dir "$scala_bin_dir"
+  link_coursier_apps_into_local_bin "$cs_install_dir" "$scala_bin_dir"
+  hash -r || true
 
   if have scala; then
     log "Scala installed: $(scala -version 2>&1 | head -n1 || true)"
   else
-    warn "Scala package installation completed, but scala is not on PATH."
+    warn "Scala package installation completed, but 'scala' is still not visible in PATH."
   fi
 }
 
@@ -584,16 +684,31 @@ EOF
 # -------------------------------------------------------------------
 # Execute
 # -------------------------------------------------------------------
+parse_args "$@"
+guard_against_sudo
 log "Bootstrapping toolchains..."
-install_prereqs
-install_tmux
-install_fzf
-install_top
-install_podman
+if (( SYSTEM_MODE )); then
+  section "Installing system prerequisites"
+  install_prereqs
+  section "Installing terminal and container tools"
+  install_tmux
+  install_fzf
+  install_top
+  install_podman
+else
+  require_user_prereqs
+  log "User mode selected; skipping apt prerequisites, terminal tools, Podman, and Playwright system dependencies."
+fi
+section "Installing Node.js and Corepack"
 install_node_corepack
+section "Installing Playwright"
 install_playwright
+section "Installing Rust"
 install_rust
+section "Installing uv"
 install_uv
+section "Installing Scala"
 install_scala
+section "Configuring shell prompt"
 configure_bash_prompt
 log "Toolchain bootstrap completed."

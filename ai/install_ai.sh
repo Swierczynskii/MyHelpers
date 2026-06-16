@@ -110,7 +110,7 @@ install_claude_code() {
   require_cmd "curl"
 
   info "Installing Claude Code with Anthropic native installer..."
-  curl -fsSL https://claude.ai/install.sh | bash
+  curl -fsSL https://claude.ai/install.sh | sh
   hash -r || true
 
   if command -v claude >/dev/null 2>&1; then
@@ -185,15 +185,12 @@ main() {
   echo "Processed components:"
   if (( RUN_CLAUDE )); then
     echo "  Claude Code -> claude"
-    echo "    Installed via https://claude.ai/install.sh"
   fi
   if (( RUN_CODEX )); then
     echo "  Codex -> codex"
-    echo "    Installed via https://chatgpt.com/codex/install.sh"
   fi
   if (( RUN_ANTIGRAVITY )); then
     echo "  Antigravity CLI -> agy / antigravity"
-    echo "    Installed via https://antigravity.google/cli/install.sh"
   fi
 }
 
