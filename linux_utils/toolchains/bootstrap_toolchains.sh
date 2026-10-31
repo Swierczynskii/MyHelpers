@@ -7,7 +7,7 @@ umask 022
 #
 # What it does:
 # - With --system: installs apt prerequisites, mise (signed APT repo), Podman, and terminal helpers
-# - Installs global toolchains with mise: Node.js LTS, pnpm, Go, Rust (stable), Bun, uv
+# - Installs global toolchains with mise: Node.js LTS, pnpm, Go, Rust (stable), Bun, uv, sqlite3def
 #   (Python versions are managed by uv; per-project versions go in each repo's mise.toml)
 # - Installs Playwright globally via npm and downloads browser binaries
 # - Adds mise activation/shims and PATH entries idempotently to shell profiles

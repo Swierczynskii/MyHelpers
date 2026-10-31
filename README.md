@@ -1,14 +1,12 @@
 # MyHelpers
 
-A collection of utility scripts for Windows and Linux to streamline common tasks such as app installation, system upgrades, developer toolchain bootstrapping, display management, network switching, temperatures monitoring, and desktop setup.
+A collection of utility scripts for Linux (Debian/Ubuntu) to streamline common tasks such as app installation, system upgrades, developer toolchain bootstrapping, temperatures monitoring, and desktop setup.
 
 ## AI
 
-This repository also includes Claude Code installers:
-- [linux_utils/toolchains/install_claude.sh](linux_utils/toolchains/install_claude.sh) for Bash environments such as Linux, macOS, and WSL
-- [win_utils/ai/install_ai.ps1](win_utils/ai/install_ai.ps1) for PowerShell environments
+This repository also includes a Claude Code installer: [linux_utils/toolchains/install_claude.sh](linux_utils/toolchains/install_claude.sh) (Bash; Linux, macOS, and WSL).
 
-The Bash installer installs only Claude Code with Anthropic's native installer (skipped when `claude` already exists) and leaves global config, agents, skills, and project-local files untouched.
+The installer installs only Claude Code with Anthropic's native installer (skipped when `claude` already exists) and leaves global config, agents, skills, and project-local files untouched.
 
 ## Linux
 
@@ -23,7 +21,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
 1) Bootstraps developer toolchains via [linux_utils/toolchains/bootstrap_toolchains.sh](linux_utils/toolchains/bootstrap_toolchains.sh)
    - Each step is a separate script under [linux_utils/toolchains/technologies](linux_utils/toolchains/technologies) (e.g. `install_mise.sh`, `configure_mise_tools.sh`), sourced by the bootstrap and also runnable on its own: `bash linux_utils/toolchains/technologies/configure_mise_tools.sh`; shared helpers live in `common.sh`
    - mise (installed first, from its signed APT repository with a pinned key fingerprint; `mise activate` is added to `~/.bashrc` and `~/.zshrc` unless an activation already exists)
-   - Global toolchains via mise (`mise use --global`, recorded in `~/.config/mise/config.toml`): Node.js LTS (follows each new LTS line automatically), pnpm, Go, Rust stable (through rustup), Bun, uv
+   - Global toolchains via mise (`mise use --global`, recorded in `~/.config/mise/config.toml`): Node.js LTS (follows each new LTS line automatically), pnpm, Go, Rust stable (through rustup), Bun, uv, sqlite3def (sqldef, MIT: declarative SQLite schema from plain SQL files incl. views and triggers: `sqlite3def app.db --dry-run < schema.sql`, then `--apply`)
    - mise shims are added to `~/.profile` (and an existing `~/.bash_profile`) so non-interactive shells, scripts, and GUI apps find the tools too
    - Python is not managed by mise: use uv (`uv python install`, `.python-version`, `pyproject.toml`)
    - Per-project versions: run `mise use <tool>@<version>` inside a repo to write its own `mise.toml`, which overrides the global defaults there (mise asks you to `mise trust` it once). `.nvmrc`/`.node-version` are read only after `mise settings add idiomatic_version_file_enable_tools node`
@@ -42,7 +40,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
 3) Copies upgrade helpers to `$HOME` (idempotent)
    - Source file:
      - Debian/Ubuntu: [linux_utils/debian_apt/upgrade.sh](linux_utils/debian_apt/upgrade.sh)
-   - `~/upgrade.sh` runs the apt steps (which also update mise itself); add `--mise` for `mise upgrade` (Node.js, pnpm, Go, Bun, uv), `--rust` for `rustup update`, `--claude` for Claude Code, or `--all` for everything
+   - `~/upgrade.sh` runs the apt steps (which also update mise itself); add `--mise` for `mise upgrade` (Node.js, pnpm, Go, Bun, uv, sqlite3def), `--rust` for `rustup update`, `--claude` for Claude Code, or `--all` for everything
 
 3a) Ensures system monitor helper is available
    - Installs lm-sensors if missing
@@ -84,6 +82,7 @@ You can run any installer directly if you don’t want the full bundle.
   - Google Chrome: [linux_utils/debian_apt/apps_installations/install_google_chrome.sh](linux_utils/debian_apt/apps_installations/install_google_chrome.sh)
   - KeePassXC: [linux_utils/debian_apt/apps_installations/install_keepassxc.sh](linux_utils/debian_apt/apps_installations/install_keepassxc.sh)
   - LibreWolf (via `extrepo`; also removes Snap Firefox if present, purging its Snap profile data): [linux_utils/debian_apt/apps_installations/install_librewolf.sh](linux_utils/debian_apt/apps_installations/install_librewolf.sh)
+  - pgAdmin 4 (official pgAdmin APT repository; asks for web, desktop, or both, and offers the missing variant if one is already installed): [linux_utils/debian_apt/apps_installations/install_pgadmin.sh](linux_utils/debian_apt/apps_installations/install_pgadmin.sh)
   - Signal Desktop (official Signal APT repository; amd64 only): [linux_utils/debian_apt/apps_installations/install_signal.sh](linux_utils/debian_apt/apps_installations/install_signal.sh)
   - Wireshark (apt package): [linux_utils/debian_apt/apps_installations/install_wireshark.sh](linux_utils/debian_apt/apps_installations/install_wireshark.sh)
   - KVM + virt-manager (qemu, libvirt, OVMF; adds you to `libvirt`/`kvm` groups, re-login needed): [linux_utils/debian_apt/apps_installations/install_virt_manager.sh](linux_utils/debian_apt/apps_installations/install_virt_manager.sh)
@@ -94,7 +93,7 @@ You can run any installer directly if you don’t want the full bundle.
   - Add `-s` (or `--system`) to install apt prerequisites, mise, Podman, terminal helpers, and Playwright system dependencies
   - Without `--system`, mise must already be installed
   - Change global versions with `mise use --global node@<major>` (etc.); list them with `mise ls --global`
-  - Optional: verify installed toolchains with `mise doctor`, `node -v`, `pnpm -v`, `bun --version`, `rustc --version`, `go version`, `uv --version`, `playwright --version`, and `podman --version`
+  - Optional: verify installed toolchains with `mise doctor`, `node -v`, `pnpm -v`, `bun --version`, `rustc --version`, `go version`, `uv --version`, `sqlite3def --version`, `playwright --version`, and `podman --version`
 - Run only the Claude Code installer:
   - `bash linux_utils/toolchains/install_claude.sh`
 - Run the Podman cleanup helper directly:
@@ -107,34 +106,7 @@ You can run any installer directly if you don’t want the full bundle.
 - Run an individual app installer directly:
   - `bash linux_utils/debian_apt/apps_installations/install_code.sh`
 
-### Intel power modes helpers
-Located under [linux_utils/intel](linux_utils/intel):
-- README: [linux_utils/intel/README.md](linux_utils/intel/README.md)
-- Check current mode: [linux_utils/intel/switches/check_curr_pwr_mode.sh](linux_utils/intel/switches/check_curr_pwr_mode.sh)
-- Set best performance: [linux_utils/intel/switches/set_perf_mode.sh](linux_utils/intel/switches/set_perf_mode.sh)
-- Set best power efficiency: [linux_utils/intel/switches/set_pwr_eff_mode.sh](linux_utils/intel/switches/set_pwr_eff_mode.sh)
-
 Notes:
 - All installers are intended to be idempotent and safe to re-run.
 - The setup script also ensures the presence of an upgrade helper, a simple temperature monitor script, and a Podman cleanup helper in your home directory.
 - The orchestrator enforces executability for install scripts and will stop if a script is not executable to avoid unintended permission changes.
-
-## Windows
-
-### Features
-
-- Display Management
-  - [win_utils/ExtendDisplay.bat](win_utils/ExtendDisplay.bat): Extend to multiple displays
-  - [win_utils/FirstDisplay.bat](win_utils/FirstDisplay.bat): Primary display only
-  - [win_utils/SecondDisplay.bat](win_utils/SecondDisplay.bat): Secondary display only
-
-- Network Management
-  - [win_utils/NetworkInterfaceSwitch.ps1](win_utils/NetworkInterfaceSwitch.ps1): PowerShell script to enable/disable adapters by name
-  - [win_utils/SwitchToEthernet.bat](win_utils/SwitchToEthernet.bat): Enables Ethernet, disables Wi‑Fi
-  - [win_utils/SwitchToWiFi.bat](win_utils/SwitchToWiFi.bat): Enables Wi‑Fi, disables Ethernet
-
-### Windows requirements and notes
-- Windows 11
-- PowerShell 5.1 or later
-- Administrative privileges required for network adapter changes
-- Determine your adapter names with `Get-NetAdapter` and adjust batch arguments if they differ from Wi‑Fi/Ethernet defaults

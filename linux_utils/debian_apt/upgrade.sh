@@ -11,7 +11,7 @@ umask 022
 #   --all          apt steps + every tool below
 #   --ai           AI CLIs: claude
 #   --claude       Claude Code CLI
-#   --mise         mise-managed tools (mise upgrade: Node.js, pnpm, Go, Bun, uv, ...)
+#   --mise         mise-managed tools (mise upgrade: Node.js, pnpm, Go, Bun, uv, sqlite3def, ...)
 #   --rust         Rust stable toolchain (rustup update)
 #   -h, --help     Show usage and exit
 #
@@ -161,7 +161,7 @@ Flags add tool upgrades AFTER the apt steps:
   --all          apt steps + every tool below
   --ai           AI CLIs: claude
   --claude       Claude Code CLI
-  --mise         mise-managed tools (mise upgrade: Node.js, pnpm, Go, Bun, uv, ...)
+  --mise         mise-managed tools (mise upgrade: Node.js, pnpm, Go, Bun, uv, sqlite3def, ...)
   --rust         Rust stable toolchain (rustup update)
   -h, --help     Show this help and exit
 EOF

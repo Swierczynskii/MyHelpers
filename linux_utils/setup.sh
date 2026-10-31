@@ -4,7 +4,7 @@ umask 022
 # -----------------------------------------------------------------------------
 # linux_utils/setup.sh
 # Orchestrated Linux setup for a single user on Debian/Ubuntu.
-# - Installs mise and the global toolchains it manages (Node.js LTS, pnpm, Go, Rust, Bun, uv), plus Playwright
+# - Installs mise and the global toolchains it manages (Node.js LTS, pnpm, Go, Rust, Bun, uv, sqlite3def), plus Playwright
 # - Installs Claude Code
 # - Runs system package/app installers (uses sudo)
 # - Copies backend-specific upgrade.sh to $HOME
@@ -296,7 +296,7 @@ else
 fi
 validate_backend "$BACKEND"
 
-# 1) Bootstrap mise + developer toolchains (Node.js, pnpm, Go, Rust, Bun, uv), Playwright, Podman
+# 1) Bootstrap mise + developer toolchains (Node.js, pnpm, Go, Rust, Bun, uv, sqlite3def), Playwright, Podman
 section "Bootstrapping toolchains"
 TOOLCHAIN_BOOTSTRAP="$SCRIPT_DIR/toolchains/bootstrap_toolchains.sh"
 if [[ -f "$TOOLCHAIN_BOOTSTRAP" ]]; then

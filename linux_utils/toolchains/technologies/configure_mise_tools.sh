@@ -10,7 +10,7 @@ umask 022
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 # node@lts follows each new LTS line automatically (mise upgrade moves to it).
-MISE_GLOBAL_TOOLS=(node@lts pnpm@latest go@latest rust@stable bun@latest uv@latest)
+MISE_GLOBAL_TOOLS=(node@lts pnpm@latest go@latest rust@stable bun@latest uv@latest sqlite3def@latest)
 
 configure_mise_tools() {
   if ! have mise; then
