@@ -305,7 +305,7 @@ fzf_select_ids() {
             --prompt "$title> " \
             --header "$header" \
             --bind 'tab:toggle+down,shift-tab:toggle+up,ctrl-a:select-all,ctrl-d:deselect-all' \
-            --bind 'enter:transform:[[ ${FZF_SELECT_COUNT:-0} -gt 0 ]] && echo accept || echo ignore' \
+            --bind 'enter:transform:[[ ${FZF_SELECT_COUNT:-0} -gt 0 ]] && echo accept || echo abort' \
             --preview 'printf "%s\n" {}' \
             --preview-window 'down,3,wrap' \
             --delimiter=$'\t' \
@@ -339,7 +339,7 @@ select_targets_tui() {
     if [[ -n "$containers_output" ]]; then
         if ! mapfile -t SELECTED_CONTAINERS < <(fzf_select_ids \
             "containers" \
-            "Tab marks rows (at least one required), Enter confirms, Esc cancels. Running containers can be selected here." \
+            "Tab marks rows, Enter confirms (nothing marked = skip this step). Running containers can be selected here." \
             "$containers_output" \
             "container"); then
             print_header "Selection cancelled" "$YELLOW"
@@ -351,7 +351,7 @@ select_targets_tui() {
     if [[ -n "$images_output" ]]; then
         if ! mapfile -t SELECTED_IMAGES < <(fzf_select_ids \
             "images" \
-            "Tab marks rows (at least one required), Enter confirms, Esc cancels. Tagged and <none>:<none> images can be selected here." \
+            "Tab marks rows, Enter confirms (nothing marked = skip this step). Tagged and <none>:<none> images can be selected here." \
             "$images_output" \
             "image"); then
             print_header "Selection cancelled" "$YELLOW"
@@ -500,8 +500,8 @@ if ! have podman; then
 fi
 
 CURRENT_ACTION="checking Podman health"
-if ! podman info >/dev/null 2>&1; then
-    err "'podman info' failed. Check your Podman setup before running cleanup."
+if ! podman ps -a -q >/dev/null 2>&1; then
+    err "'podman ps' failed. Check your Podman setup before running cleanup."
     exit 1
 fi
 

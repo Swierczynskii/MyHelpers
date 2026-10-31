@@ -15,27 +15,26 @@ The Bash installer installs only Claude Code with Anthropic's native installer (
 This repository provides a unified setup flow for Debian/Ubuntu (apt).
 
 ### Quick start
-- Make the setup script executable and run the user-scoped setup:
+- Make the setup script executable and run it (installs toolchains, system packages, desktop apps, Podman, Playwright system dependencies, and lm-sensors):
   - `chmod +x ./linux_utils/setup.sh`
   - `./linux_utils/setup.sh`
-- To also install system packages, desktop apps, Podman, Playwright system dependencies, lm-sensors, and battery threshold persistence:
-  - `./linux_utils/setup.sh -s` (or `./linux_utils/setup.sh --system`)
 
 ### What the setup does
 1) Bootstraps developer toolchains via [linux_utils/toolchains/bootstrap_toolchains.sh](linux_utils/toolchains/bootstrap_toolchains.sh)
+   - Each technology is a separate script under [linux_utils/toolchains/technologies](linux_utils/toolchains/technologies) (e.g. `install_go.sh`, `install_node.sh`), sourced by the bootstrap and also runnable on its own: `bash linux_utils/toolchains/technologies/install_go.sh`; shared helpers live in `common.sh`
    - Node.js (installed via official tarball into `~/.local/node`; Corepack enabled and pnpm activated)
    - Bun (installed via the official installer into `~/.local/bun`)
    - Rust (installed via official `rustup` into `~/.cargo/bin`)
    - Go (latest stable release installed from the official checksum-verified archive into `~/.local/go`; override with `GO_VERSION`)
    - Playwright (installed globally from npm, then browser binaries are installed for the user)
-   - With `--system`: Podman, tmux, fzf, Vim, procps/top, apt prerequisites, and Playwright Linux deps are installed via apt
+   - Podman, tmux, fzf, procps/top, apt prerequisites, and Playwright Linux deps are installed via apt
    - uv (Astral official installer)
    - Adds the necessary PATH entries idempotently to your shell profiles
    - Sets the default GNOME Terminal profile to 8% transparency when GNOME Terminal settings are available; override with `GNOME_TERMINAL_TRANSPARENCY` (0–100)
 
 1a) Installs Claude Code via [linux_utils/toolchains/install_claude.sh](linux_utils/toolchains/install_claude.sh) (Anthropic official installer)
 
-2) With `--system`, runs the app installer orchestrator inline from [linux_utils/setup.sh](linux_utils/setup.sh)
+2) Runs the app installer orchestrator inline from [linux_utils/setup.sh](linux_utils/setup.sh)
    - Uses the Debian/Ubuntu backend and selects the matching apps_installations directory
    - Optional: runs backend/tools_installations/install_*.sh first if such directory exists
    - Executes each app installer idempotently; installers skip when the app is already installed
@@ -48,7 +47,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
    - `~/upgrade.sh --go` detects the active Go installation: it updates MyHelpers and official `/usr/local/go` installs, relies on the preceding APT upgrade for APT-managed Go, and skips unrecognized version managers safely. Official system updates retain a rollback backup.
 
 3a) Ensures system monitor helper is available
-   - With `--system`: installs lm-sensors if missing
+   - Installs lm-sensors if missing
    - Copies [linux_utils/monitor.sh](linux_utils/monitor.sh) to `$HOME/monitor.sh` and marks it executable (idempotent)
    - Usage after setup: `~/monitor.sh` (tmux split: top + watch sensors; requires lm-sensors, tmux, procps/procps-ng)
 
@@ -56,7 +55,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
    - Copies [linux_utils/podman_cleanup.sh](linux_utils/podman_cleanup.sh) to `$HOME/podman_cleanup.sh` and marks it executable (idempotent)
    - Always shows a Terraform-like preview before doing anything
    - Default interactive run asks for confirmation, then removes non-running containers and explicitly tries to remove all `<none>:<none>` images
-   - `-s` / `--select` opens a terminal-native `fzf` selector so you can mark any containers and any images to remove; Enter does nothing until at least one row is marked (the focused row is no longer picked implicitly)
+   - `-s` / `--select` opens a terminal-native `fzf` selector so you can mark any containers and any images to remove; Enter with nothing marked skips that step (containers or images), so you can remove only one kind; the focused row is never picked implicitly
    - In `--select` mode, running containers and tagged images can also be chosen intentionally
    - `fzf` is installed by the bootstrap/setup flow and used as the only selector backend
    - `DRY_RUN=1` shows the preview only and deletes nothing
@@ -67,14 +66,6 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
    - Before assigning it, setup clears an existing single `Super+Q` shortcut so a competing GNOME component such as Ubuntu Dock cannot capture it
    - It closes the current app window; applications with multiple windows may remain open
 
-3d) With `--system`, configures persistent battery thresholds (best-effort)
-   - Uses [linux_utils/battery_thresholds/persistence/install_service.sh](linux_utils/battery_thresholds/persistence/install_service.sh)
-   - Interactive prompt:
-     - Keep defaults `20%` start and `80%` end
-     - Or choose custom start/end values (asked one by one)
-   - Non-interactive mode defaults to `20/80`
-   - If battery/sysfs support is missing, setup logs a warning and continues
-
 3d) Writes setup log to repository `logs/setup.log`
    - Overwrites on each run (single log file, no log-file buildup)
    - Terminal output is colorized for readability, while the saved log remains plain text with terminal control sequences stripped
@@ -83,7 +74,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
 ### Requirements
 - Debian/Ubuntu with apt
 - Run setup scripts as your normal user; do not run them with `sudo`
-- sudo privileges are required only when using `--system` or running apt/system installers directly
+- sudo privileges are required for the system steps of setup and when running apt/system installers directly
 - Internet access for package and toolchain downloads
 
 ### Per-app installers (idempotent)
@@ -116,7 +107,7 @@ You can run any installer directly if you don’t want the full bundle.
   - `DRY_RUN=1 ./linux_utils/podman_cleanup.sh` to preview safe cleanup without deleting anything
   - `AUTO_APPROVE=1 ./linux_utils/podman_cleanup.sh` for non-interactive safe cleanup
 - Run system app installers through setup:
-  - `./linux_utils/setup.sh --system`
+  - `./linux_utils/setup.sh`
 - Run an individual app installer directly:
   - `bash linux_utils/debian_apt/apps_installations/install_code.sh`
 
@@ -126,14 +117,6 @@ Located under [linux_utils/intel](linux_utils/intel):
 - Check current mode: [linux_utils/intel/switches/check_curr_pwr_mode.sh](linux_utils/intel/switches/check_curr_pwr_mode.sh)
 - Set best performance: [linux_utils/intel/switches/set_perf_mode.sh](linux_utils/intel/switches/set_perf_mode.sh)
 - Set best power efficiency: [linux_utils/intel/switches/set_pwr_eff_mode.sh](linux_utils/intel/switches/set_pwr_eff_mode.sh)
-
-### Battery threshold helpers
-Located under [linux_utils/battery_thresholds](linux_utils/battery_thresholds):
-- README: [linux_utils/battery_thresholds/README.md](linux_utils/battery_thresholds/README.md)
-- Check current thresholds: [linux_utils/battery_thresholds/switches/check_thresholds.sh](linux_utils/battery_thresholds/switches/check_thresholds.sh)
-- Set thresholds immediately: [linux_utils/battery_thresholds/switches/set_thresholds.sh](linux_utils/battery_thresholds/switches/set_thresholds.sh)
-- Install persistent systemd service: [linux_utils/battery_thresholds/persistence/install_service.sh](linux_utils/battery_thresholds/persistence/install_service.sh)
-- Remove persistent systemd service: [linux_utils/battery_thresholds/persistence/uninstall_service.sh](linux_utils/battery_thresholds/persistence/uninstall_service.sh)
 
 Notes:
 - All installers are intended to be idempotent and safe to re-run.

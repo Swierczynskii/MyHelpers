@@ -6,10 +6,9 @@ umask 022
 # Orchestrated Linux setup for a single user on Debian/Ubuntu.
 # - Bootstraps user-scoped developer toolchains (Node.js + Corepack/pnpm, Bun, Rust, Go, Playwright, uv)
 # - Installs AI CLIs and syncs user config
-# - Optionally runs system package/app installers with --system
+# - Runs system package/app installers (uses sudo)
 # - Copies backend-specific upgrade.sh and Go installation inspector to $HOME
 # - Copies monitor.sh and podman_cleanup.sh to $HOME
-# - Optionally configures persistent battery thresholds (default 20/80) when supported
 # Safe to re-run; individual steps are idempotent.
 # -----------------------------------------------------------------------------
 
@@ -20,8 +19,6 @@ fi
 if (( COLOR_ENABLED )); then
   export FORCE_COLOR=1
 fi
-
-SYSTEM_MODE="${MYHELPERS_SYSTEM:-0}"
 
 TIMESTAMP_COLOR='\033[1;36m'
 TITLE_COLOR='\033[0;34m'
@@ -132,44 +129,25 @@ require_cmd() {
 
 usage() {
   cat <<'EOF'
-Usage: ./linux_utils/setup.sh [-u|--user] | [-s|--system]
+Usage: ./linux_utils/setup.sh [-h|--help]
 
 Options:
-  -u, --user    Run user-scoped setup only (default)
-  -s, --system  Also run apt app installers, monitor prerequisites, and battery service setup
   -h, --help  Show this help message
 
-Run this script as your normal user. It calls sudo only for explicit --system steps.
+Run this script as your normal user. It calls sudo for system steps (apt installers, lm-sensors).
 EOF
 }
 
 parse_args() {
-  while (($#)); do
-    case "$1" in
-      -u|--user|--user-only)
-        SYSTEM_MODE=0
-        ;;
-      -s|--system)
-        SYSTEM_MODE=1
-        ;;
-      -h|--help)
-        usage
-        exit 0
-        ;;
-      *)
-        err "Unknown option: $1"
-        usage >&2
-        exit 1
-        ;;
-    esac
-    shift
-  done
-
-  case "${SYSTEM_MODE}" in
-    1|true|TRUE|yes|YES) SYSTEM_MODE=1 ;;
-    0|false|FALSE|no|NO|'') SYSTEM_MODE=0 ;;
+  case "${1:-}" in
+    '') ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
     *)
-      err "Invalid MYHELPERS_SYSTEM value: ${SYSTEM_MODE}. Use 0 or 1."
+      err "Unknown option: $1"
+      usage >&2
       exit 1
       ;;
   esac
@@ -177,7 +155,7 @@ parse_args() {
 
 guard_against_sudo() {
   if [[ "${EUID:-$(id -u)}" -eq 0 || -n "${SUDO_USER:-}" ]]; then
-    err "Run this script without sudo. It installs user files into your home directory and calls sudo only for explicit --system steps."
+    err "Run this script without sudo. It installs user files into your home directory and calls sudo itself for system steps."
     exit 1
   fi
 }
@@ -191,10 +169,6 @@ validate_backend() {
       exit 1
       ;;
   esac
-}
-
-is_uint() {
-  [[ "${1:-}" =~ ^[0-9]+$ ]]
 }
 
 run_installer_script() {
@@ -275,56 +249,6 @@ deploy_helper_script() {
   fi
 }
 
-configure_battery_thresholds() {
-  local installer="$SCRIPT_DIR/battery_thresholds/persistence/install_service.sh"
-  local start_threshold="20"
-  local end_threshold="80"
-  local keep_default="Y"
-
-  if [[ ! -x "$installer" ]]; then
-    log "Battery thresholds installer missing or not executable at $installer (skipping)."
-    return 0
-  fi
-
-  if [[ -t 0 ]]; then
-    read -r -p "Keep default battery thresholds (start=20%, end=80%)? [Y/n]: " keep_default || true
-    keep_default="${keep_default:-Y}"
-
-    if [[ "$keep_default" =~ ^[Nn]$ ]]; then
-      while true; do
-        read -r -p "Enter start threshold (0-100): " start_threshold || true
-        if ! is_uint "$start_threshold" || (( start_threshold < 0 || start_threshold > 100 )); then
-          echo "Invalid start threshold. Enter an integer from 0 to 100."
-          continue
-        fi
-        break
-      done
-
-      while true; do
-        read -r -p "Enter end threshold (0-100): " end_threshold || true
-        if ! is_uint "$end_threshold" || (( end_threshold < 0 || end_threshold > 100 )); then
-          echo "Invalid end threshold. Enter an integer from 0 to 100."
-          continue
-        fi
-        if (( start_threshold >= end_threshold )); then
-          echo "End threshold must be greater than start threshold (${start_threshold})."
-          continue
-        fi
-        break
-      done
-    fi
-  else
-    log "Non-interactive stdin detected; using default battery thresholds start=20 end=80."
-  fi
-
-  log "Configuring persistent battery thresholds: start=${start_threshold}, end=${end_threshold}"
-  if sudo bash "$installer" --start "$start_threshold" --end "$end_threshold"; then
-    log "Battery thresholds configured successfully."
-  else
-    warn "Battery threshold configuration failed or is unsupported on this hardware; continuing setup."
-  fi
-}
-
 parse_args "$@"
 guard_against_sudo
 
@@ -350,14 +274,9 @@ fi
 
 # Preconditions
 require_cmd bash
-if (( SYSTEM_MODE )) && ! command -v sudo >/dev/null 2>&1; then
+if ! command -v sudo >/dev/null 2>&1; then
   err "sudo is not available. Installers typically require privilege escalation."
   exit 1
-fi
-if (( SYSTEM_MODE )); then
-  log "System mode selected; apt app installers and system configuration steps are enabled."
-else
-  log "User mode selected; apt app installers and system configuration steps are disabled."
 fi
 
 # Backend detection and validation
@@ -380,11 +299,7 @@ section "Bootstrapping toolchains"
 TOOLCHAIN_BOOTSTRAP="$SCRIPT_DIR/toolchains/bootstrap_toolchains.sh"
 if [[ -f "$TOOLCHAIN_BOOTSTRAP" ]]; then
   log "Bootstrapping developer toolchains via $TOOLCHAIN_BOOTSTRAP"
-  if (( SYSTEM_MODE )); then
-    BACKEND="$BACKEND" bash "$TOOLCHAIN_BOOTSTRAP" --system
-  else
-    BACKEND="$BACKEND" bash "$TOOLCHAIN_BOOTSTRAP" --user
-  fi
+  BACKEND="$BACKEND" bash "$TOOLCHAIN_BOOTSTRAP" --system
 else
   log "Toolchain bootstrap script not found at $TOOLCHAIN_BOOTSTRAP (skipping)."
 fi
@@ -399,45 +314,40 @@ else
   log "Claude installer missing at $AI_INSTALLER (skipping)."
 fi
 
-# 2) Run system installers only when explicitly requested
-if (( SYSTEM_MODE )); then
-  section "Running system installers"
-  APPS_DIR="$SCRIPT_DIR/$BACKEND/apps_installations"
-  TOOLS_DIR="$SCRIPT_DIR/$BACKEND/tools_installations"
+# 2) Run system installers
+section "Running system installers"
+APPS_DIR="$SCRIPT_DIR/$BACKEND/apps_installations"
+TOOLS_DIR="$SCRIPT_DIR/$BACKEND/tools_installations"
 
-  if [[ ! -d "$APPS_DIR" ]]; then
-    err "apps_installations directory not found at $APPS_DIR"
-    exit 1
-  fi
+if [[ ! -d "$APPS_DIR" ]]; then
+  err "apps_installations directory not found at $APPS_DIR"
+  exit 1
+fi
 
-  log "Starting installation orchestrator for backend: $BACKEND"
-  log "Apps directory: $APPS_DIR"
+log "Starting installation orchestrator for backend: $BACKEND"
+log "Apps directory: $APPS_DIR"
 
-  # Tools phase
-  if [[ -d "$TOOLS_DIR" ]]; then
-    log "Processing tools from: $TOOLS_DIR"
-    run_installers_from_dir "$TOOLS_DIR"
-  else
-    log "No tools_installations directory at $TOOLS_DIR (skipping tools)."
-  fi
-
-  # Apps phase
-  run_installers_from_dir "$APPS_DIR" 1 1
-
-  log "All installation scripts have been executed successfully."
-
-  # 2a) Ensure lm-sensors is installed for temperature monitoring (apt-only)
-  section "Installing monitor prerequisites"
-  if ! dpkg -s lm-sensors >/dev/null 2>&1; then
-    log "Installing lm-sensors (apt-get)..."
-    sudo apt-get update || true
-    sudo apt-get install -y lm-sensors
-  else
-    log "lm-sensors already installed."
-  fi
+# Tools phase
+if [[ -d "$TOOLS_DIR" ]]; then
+  log "Processing tools from: $TOOLS_DIR"
+  run_installers_from_dir "$TOOLS_DIR"
 else
-  section "Skipping system installers"
-  log "Run './linux_utils/setup.sh --system' to install apt apps, lm-sensors, Podman, and battery threshold persistence."
+  log "No tools_installations directory at $TOOLS_DIR (skipping tools)."
+fi
+
+# Apps phase
+run_installers_from_dir "$APPS_DIR" 1 1
+
+log "All installation scripts have been executed successfully."
+
+# 2a) Ensure lm-sensors is installed for temperature monitoring (apt-only)
+section "Installing monitor prerequisites"
+if ! dpkg -s lm-sensors >/dev/null 2>&1; then
+  log "Installing lm-sensors (apt-get)..."
+  sudo apt-get update || true
+  sudo apt-get install -y lm-sensors
+else
+  log "lm-sensors already installed."
 fi
 
 # 3) Copy upgrade helper from backend to $HOME (force overwrite, ensure executable)
@@ -473,15 +383,6 @@ if [[ -f "$MACOS_QUIT_SHORTCUT" ]]; then
   fi
 else
   log "macos_quit_shortcut.sh not found at $MACOS_QUIT_SHORTCUT (skipping)."
-fi
-
-# 3e) Configure persistent battery thresholds (best effort; default 20/80)
-if (( SYSTEM_MODE )); then
-  section "Configuring battery thresholds"
-  configure_battery_thresholds
-else
-  section "Skipping battery thresholds"
-  log "Battery threshold persistence is a system configuration step; skipped in user mode."
 fi
 
 section "Setup completed"
