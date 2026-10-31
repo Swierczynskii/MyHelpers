@@ -69,7 +69,8 @@ print_box() {
 }
 
 timestamp() {
-  local ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
+  local ts
+  ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
   if (( COLOR_ENABLED )); then
     printf '%b%s%b' "$TIMESTAMP_COLOR" "$ts" "$NC"
   else

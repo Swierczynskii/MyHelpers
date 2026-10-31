@@ -4,18 +4,11 @@ A collection of utility scripts for Windows and Linux to streamline common tasks
 
 ## AI
 
-This repository also includes AI setup helpers under [ai](ai):
-- [ai/install_ai.sh](ai/install_ai.sh) for Bash environments such as Linux, macOS, and WSL
+This repository also includes Claude Code installers:
+- [linux_utils/toolchains/install_claude.sh](linux_utils/toolchains/install_claude.sh) for Bash environments such as Linux, macOS, and WSL
 - [win_utils/ai/install_ai.ps1](win_utils/ai/install_ai.ps1) for PowerShell environments
 
-The AI installers:
-- install Claude Code and Codex when they are missing
-- install Antigravity CLI from the Bash installer when it is missing
-- install Claude Code with Anthropic's native installer
-- install Codex with OpenAI's official standalone installer
-- install Antigravity CLI with the official `https://antigravity.google/cli/install.sh` installer in Bash
-- support `--claude`, `--codex`, and `--antigravity` in Bash, and `-Claude` / `-Codex` in PowerShell
-- leave global config, agents, skills, and project-local files untouched
+The Bash installer installs only Claude Code with Anthropic's native installer (skipped when `claude` already exists) and leaves global config, agents, skills, and project-local files untouched.
 
 ## Linux
 
@@ -26,22 +19,21 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
   - `chmod +x ./linux_utils/setup.sh`
   - `./linux_utils/setup.sh`
 - To also install system packages, desktop apps, Podman, Playwright system dependencies, lm-sensors, and battery threshold persistence:
-  - `./linux_utils/setup.sh --system`
+  - `./linux_utils/setup.sh -s` (or `./linux_utils/setup.sh --system`)
 
 ### What the setup does
 1) Bootstraps developer toolchains via [linux_utils/toolchains/bootstrap_toolchains.sh](linux_utils/toolchains/bootstrap_toolchains.sh)
    - Node.js (installed via official tarball into `~/.local/node`; Corepack enabled and pnpm activated)
+   - Bun (installed via the official installer into `~/.local/bun`)
    - Rust (installed via official `rustup` into `~/.cargo/bin`)
-   - Scala (installed via the official Coursier `cs setup` flow into `~/.local/bin`; older Coursier-managed apps under `~/.local/share/coursier/bin` are linked there automatically on reruns; installs a JVM too when needed)
+   - Go (latest stable release installed from the official checksum-verified archive into `~/.local/go`; override with `GO_VERSION`)
    - Playwright (installed globally from npm, then browser binaries are installed for the user)
-   - With `--system`: Podman, tmux, fzf, procps/top, apt prerequisites, and Playwright Linux deps are installed via apt
+   - With `--system`: Podman, tmux, fzf, Vim, procps/top, apt prerequisites, and Playwright Linux deps are installed via apt
    - uv (Astral official installer)
    - Adds the necessary PATH entries idempotently to your shell profiles
+   - Sets the default GNOME Terminal profile to 8% transparency when GNOME Terminal settings are available; override with `GNOME_TERMINAL_TRANSPARENCY` (0–100)
 
-1a) Installs AI CLIs via [ai/install_ai.sh](ai/install_ai.sh)
-   - Claude Code (Anthropic official installer)
-   - Codex (OpenAI official standalone installer)
-   - Antigravity CLI (official `https://antigravity.google/cli/install.sh` installer)
+1a) Installs Claude Code via [linux_utils/toolchains/install_claude.sh](linux_utils/toolchains/install_claude.sh) (Anthropic official installer)
 
 2) With `--system`, runs the app installer orchestrator inline from [linux_utils/setup.sh](linux_utils/setup.sh)
    - Uses the Debian/Ubuntu backend and selects the matching apps_installations directory
@@ -49,9 +41,11 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
    - Executes each app installer idempotently; installers skip when the app is already installed
    - Notes: installers must be executable; the orchestrator refuses to chmod executable bits automatically and will exit if a script is not executable
 
-3) Copies an upgrade helper to `$HOME/upgrade.sh` (idempotent)
+3) Copies upgrade helpers to `$HOME` (idempotent)
    - Source file:
      - Debian/Ubuntu: [linux_utils/debian_apt/upgrade.sh](linux_utils/debian_apt/upgrade.sh)
+   - [linux_utils/toolchains/inspect_go_installation.sh](linux_utils/toolchains/inspect_go_installation.sh) is copied to `~/inspect_go_installation.sh`
+   - `~/upgrade.sh --go` detects the active Go installation: it updates MyHelpers and official `/usr/local/go` installs, relies on the preceding APT upgrade for APT-managed Go, and skips unrecognized version managers safely. Official system updates retain a rollback backup.
 
 3a) Ensures system monitor helper is available
    - With `--system`: installs lm-sensors if missing
@@ -62,12 +56,18 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
    - Copies [linux_utils/podman_cleanup.sh](linux_utils/podman_cleanup.sh) to `$HOME/podman_cleanup.sh` and marks it executable (idempotent)
    - Always shows a Terraform-like preview before doing anything
    - Default interactive run asks for confirmation, then removes non-running containers and explicitly tries to remove all `<none>:<none>` images
-   - `--select` opens a terminal-native `fzf` selector so you can mark any containers and any images to remove
+   - `-s` / `--select` opens a terminal-native `fzf` selector so you can mark any containers and any images to remove; Enter does nothing until at least one row is marked (the focused row is no longer picked implicitly)
    - In `--select` mode, running containers and tagged images can also be chosen intentionally
    - `fzf` is installed by the bootstrap/setup flow and used as the only selector backend
    - `DRY_RUN=1` shows the preview only and deletes nothing
 
-3c) With `--system`, configures persistent battery thresholds (best-effort)
+3c) Configures a macOS-like close-window shortcut (best-effort)
+   - Setup runs [linux_utils/macos_quit_shortcut.sh](linux_utils/macos_quit_shortcut.sh) directly; it is not copied to `$HOME`
+   - On GNOME, it replaces the default `Alt+F4` close-window shortcut with `Super+Q`, the closest Linux equivalent to macOS `Command+Q`
+   - Before assigning it, setup clears an existing single `Super+Q` shortcut so a competing GNOME component such as Ubuntu Dock cannot capture it
+   - It closes the current app window; applications with multiple windows may remain open
+
+3d) With `--system`, configures persistent battery thresholds (best-effort)
    - Uses [linux_utils/battery_thresholds/persistence/install_service.sh](linux_utils/battery_thresholds/persistence/install_service.sh)
    - Interactive prompt:
      - Keep defaults `20%` start and `80%` end
@@ -94,24 +94,25 @@ You can run any installer directly if you don’t want the full bundle.
   - VS Code: [linux_utils/debian_apt/apps_installations/install_code.sh](linux_utils/debian_apt/apps_installations/install_code.sh)
   - Google Chrome: [linux_utils/debian_apt/apps_installations/install_google_chrome.sh](linux_utils/debian_apt/apps_installations/install_google_chrome.sh)
   - KeePassXC: [linux_utils/debian_apt/apps_installations/install_keepassxc.sh](linux_utils/debian_apt/apps_installations/install_keepassxc.sh)
+  - LibreWolf (via `extrepo`; also removes Snap Firefox if present, purging its Snap profile data): [linux_utils/debian_apt/apps_installations/install_librewolf.sh](linux_utils/debian_apt/apps_installations/install_librewolf.sh)
   - Signal Desktop (official Signal APT repository; amd64 only): [linux_utils/debian_apt/apps_installations/install_signal.sh](linux_utils/debian_apt/apps_installations/install_signal.sh)
-  - Wireshark: [linux_utils/debian_apt/apps_installations/install_wireshark.sh](linux_utils/debian_apt/apps_installations/install_wireshark.sh)
-  - Zed (official installer script): [linux_utils/debian_apt/apps_installations/install_zed.sh](linux_utils/debian_apt/apps_installations/install_zed.sh)
-  - VirtualBox: [linux_utils/debian_apt/apps_installations/install_virtualbox.sh](linux_utils/debian_apt/apps_installations/install_virtualbox.sh)
+  - Wireshark (apt package): [linux_utils/debian_apt/apps_installations/install_wireshark.sh](linux_utils/debian_apt/apps_installations/install_wireshark.sh)
+  - KVM + virt-manager (qemu, libvirt, OVMF; adds you to `libvirt`/`kvm` groups, re-login needed): [linux_utils/debian_apt/apps_installations/install_virt_manager.sh](linux_utils/debian_apt/apps_installations/install_virt_manager.sh)
 
 ### Manual usage
 - Run only the toolchain bootstrap:
   - `bash linux_utils/toolchains/bootstrap_toolchains.sh`
-  - Add `--system` to install apt prerequisites, Podman, terminal helpers, and Playwright system dependencies
+  - Add `-s` (or `--system`) to install apt prerequisites, Podman, terminal helpers, and Playwright system dependencies
   - Optional: override Node version by exporting `NODE_VERSION` (e.g., `NODE_VERSION=v22.11.0`)
+  - Optional: override Go version by exporting `GO_VERSION` (e.g., `GO_VERSION=go1.26.4`)
+  - Inspect the active Go installation and its update method: `bash linux_utils/toolchains/inspect_go_installation.sh`
   - Optional: set `SYSTEM_NODE=1` with `--system` to install Node under `/usr/local/node` instead of `~/.local/node`
-  - Optional: verify installed toolchains with `node -v`, `rustc --version`, `scala -version`, `playwright --version`, and `podman --version`
-- Run only the AI CLI installer:
-  - `bash ai/install_ai.sh`
-  - Limit to one CLI: `bash ai/install_ai.sh --claude`, `bash ai/install_ai.sh --codex`, or `bash ai/install_ai.sh --antigravity`
+  - Optional: verify installed toolchains with `node -v`, `bun --version`, `rustc --version`, `go version`, `playwright --version`, and `podman --version`
+- Run only the Claude Code installer:
+  - `bash linux_utils/toolchains/install_claude.sh`
 - Run the Podman cleanup helper directly:
   - `./linux_utils/podman_cleanup.sh` to preview safe cleanup and confirm explicit removal of non-running containers plus `<none>:<none>` images
-  - `./linux_utils/podman_cleanup.sh --select` to open an `fzf` selector and mark any containers/images to remove, including running containers or tagged images
+  - `./linux_utils/podman_cleanup.sh -s` (or `--select`) to open an `fzf` selector and mark any containers/images to remove, including running containers or tagged images
   - `DRY_RUN=1 ./linux_utils/podman_cleanup.sh` to preview safe cleanup without deleting anything
   - `AUTO_APPROVE=1 ./linux_utils/podman_cleanup.sh` for non-interactive safe cleanup
 - Run system app installers through setup:

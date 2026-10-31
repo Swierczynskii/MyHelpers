@@ -4,10 +4,10 @@ umask 022
 # -----------------------------------------------------------------------------
 # linux_utils/setup.sh
 # Orchestrated Linux setup for a single user on Debian/Ubuntu.
-# - Bootstraps user-scoped developer toolchains (Node.js + Corepack/pnpm, Rust, Scala, Playwright, uv)
+# - Bootstraps user-scoped developer toolchains (Node.js + Corepack/pnpm, Bun, Rust, Go, Playwright, uv)
 # - Installs AI CLIs and syncs user config
 # - Optionally runs system package/app installers with --system
-# - Copies backend-specific upgrade.sh to $HOME
+# - Copies backend-specific upgrade.sh and Go installation inspector to $HOME
 # - Copies monitor.sh and podman_cleanup.sh to $HOME
 # - Optionally configures persistent battery thresholds (default 20/80) when supported
 # Safe to re-run; individual steps are idempotent.
@@ -132,11 +132,11 @@ require_cmd() {
 
 usage() {
   cat <<'EOF'
-Usage: ./linux_utils/setup.sh [--user|--system]
+Usage: ./linux_utils/setup.sh [-u|--user] | [-s|--system]
 
 Options:
-  --user      Run user-scoped setup only (default)
-  --system    Also run apt app installers, monitor prerequisites, and battery service setup
+  -u, --user    Run user-scoped setup only (default)
+  -s, --system  Also run apt app installers, monitor prerequisites, and battery service setup
   -h, --help  Show this help message
 
 Run this script as your normal user. It calls sudo only for explicit --system steps.
@@ -146,10 +146,10 @@ EOF
 parse_args() {
   while (($#)); do
     case "$1" in
-      --user|--user-only)
+      -u|--user|--user-only)
         SYSTEM_MODE=0
         ;;
-      --system)
+      -s|--system)
         SYSTEM_MODE=1
         ;;
       -h|--help)
@@ -375,7 +375,7 @@ else
 fi
 validate_backend "$BACKEND"
 
-# 1) Bootstrap developer toolchains (Node.js + Corepack/pnpm, Rust, Scala, Playwright, Podman, uv)
+# 1) Bootstrap developer toolchains (Node.js + Corepack/pnpm, Bun, Rust, Go, Playwright, Podman, uv)
 section "Bootstrapping toolchains"
 TOOLCHAIN_BOOTSTRAP="$SCRIPT_DIR/toolchains/bootstrap_toolchains.sh"
 if [[ -f "$TOOLCHAIN_BOOTSTRAP" ]]; then
@@ -389,14 +389,14 @@ else
   log "Toolchain bootstrap script not found at $TOOLCHAIN_BOOTSTRAP (skipping)."
 fi
 
-# 1a) Install AI CLIs after Node/npm toolchains are available
-section "Installing AI CLIs"
-AI_INSTALLER="$REPO_ROOT/ai/install_ai.sh"
+# 1a) Install Claude Code after Node/npm toolchains are available
+section "Installing Claude Code"
+AI_INSTALLER="$REPO_ROOT/linux_utils/toolchains/install_claude.sh"
 if [[ -f "$AI_INSTALLER" ]]; then
-  log "Installing AI CLIs via $AI_INSTALLER"
+  log "Installing Claude Code via $AI_INSTALLER"
   bash "$AI_INSTALLER"
 else
-  log "AI installer missing at $AI_INSTALLER (skipping)."
+  log "Claude installer missing at $AI_INSTALLER (skipping)."
 fi
 
 # 2) Run system installers only when explicitly requested
@@ -446,17 +446,36 @@ SRC_UPGRADE="$SCRIPT_DIR/$BACKEND/upgrade.sh"
 DEST_UPGRADE="$HOME/upgrade.sh"
 deploy_helper_script "$SRC_UPGRADE" "$DEST_UPGRADE" 'upgrade.sh'
 
-# 3a) Copy monitor.sh helper to $HOME (force overwrite) and ensure executable
+# 3a) Copy Go installation inspector to $HOME (force overwrite) and ensure executable
+SRC_GO_INSPECTOR="$SCRIPT_DIR/toolchains/inspect_go_installation.sh"
+DEST_GO_INSPECTOR="$HOME/inspect_go_installation.sh"
+deploy_helper_script "$SRC_GO_INSPECTOR" "$DEST_GO_INSPECTOR" 'inspect_go_installation.sh'
+
+# 3b) Copy monitor.sh helper to $HOME (force overwrite) and ensure executable
 SRC_MONITOR="$SCRIPT_DIR/monitor.sh"
 DEST_MONITOR="$HOME/monitor.sh"
 deploy_helper_script "$SRC_MONITOR" "$DEST_MONITOR" 'monitor.sh'
 
-# 3b) Copy podman_cleanup.sh helper to $HOME (force overwrite) and ensure executable
+# 3c) Copy podman_cleanup.sh helper to $HOME (force overwrite) and ensure executable
 SRC_PODMAN_CLEANUP="$SCRIPT_DIR/podman_cleanup.sh"
 DEST_PODMAN_CLEANUP="$HOME/podman_cleanup.sh"
 deploy_helper_script "$SRC_PODMAN_CLEANUP" "$DEST_PODMAN_CLEANUP" 'podman_cleanup.sh'
 
-# 3c) Configure persistent battery thresholds (best effort; default 20/80)
+# 3d) Configure a macOS-like GNOME close-window shortcut (best effort)
+section "Configuring GNOME close-window shortcut"
+MACOS_QUIT_SHORTCUT="$SCRIPT_DIR/macos_quit_shortcut.sh"
+if [[ -f "$MACOS_QUIT_SHORTCUT" ]]; then
+  log "Setting GNOME's close-window shortcut to Super+Q."
+  if bash "$MACOS_QUIT_SHORTCUT"; then
+    log "GNOME close-window shortcut configured successfully."
+  else
+    warn "Unable to configure the GNOME close-window shortcut; continuing setup."
+  fi
+else
+  log "macos_quit_shortcut.sh not found at $MACOS_QUIT_SHORTCUT (skipping)."
+fi
+
+# 3e) Configure persistent battery thresholds (best effort; default 20/80)
 if (( SYSTEM_MODE )); then
   section "Configuring battery thresholds"
   configure_battery_thresholds

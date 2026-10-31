@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 umask 022
-# -----------------------------------------------------------------------------
-# linux_utils/debian_apt/apps_installations/install_virtualbox.sh
-# Install VirtualBox via apt-get (distro repositories)
-# Prerequisites: sudo, apt-get, network access
-# Usage: ./install_virtualbox.sh
-# Non-interactive: export DEBIAN_FRONTEND=noninteractive
-# -----------------------------------------------------------------------------
 export DEBIAN_FRONTEND=noninteractive
 
 COLOR_ENABLED=0
@@ -75,7 +68,8 @@ print_box() {
 }
 
 timestamp() {
-  local ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
+  local ts
+  ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
   if (( COLOR_ENABLED )); then
     printf '%b%s%b' "$TIMESTAMP_COLOR" "$ts" "$NC"
   else
@@ -96,29 +90,50 @@ title() {
 }
 
 if [[ "${SKIP_INSTALLER_TITLE:-0}" != "1" ]]; then
-  title "Installing VirtualBox"
+  title "Installing KVM + Virtual Machine Manager"
 fi
 
-# VirtualBox installation via apt (from distro repositories)
-
-# Ensure apt is available
 if ! command -v apt >/dev/null 2>&1; then
   err "apt not found. This script supports Debian/Ubuntu-based systems."
   exit 1
 fi
 
-log "Checking if VirtualBox is already installed..."
-if dpkg -s virtualbox >/dev/null 2>&1 || command -v virtualbox >/dev/null 2>&1; then
-  log "virtualbox already installed. Skipping."
-  exit 0
+if ! grep -qE '(vmx|svm)' /proc/cpuinfo; then
+  err "CPU virtualization (VT-x/AMD-V) not available. Enable it in BIOS/UEFI (or the hypervisor) and re-run."
+  exit 1
 fi
 
-log "Updating package lists..."
-sudo apt-get update
+PACKAGES=(qemu-system-x86 libvirt-daemon-system libvirt-clients virt-manager ovmf)
+MISSING=()
+for pkg in "${PACKAGES[@]}"; do
+  dpkg -s "$pkg" >/dev/null 2>&1 || MISSING+=("$pkg")
+done
 
-log "Installing VirtualBox and related packages (dkms, qt, guest-additions iso)..."
-# Note: These are distro-provided packages. For Oracle's latest builds, use Oracle's repo instead.
-sudo apt-get install -y virtualbox virtualbox-dkms virtualbox-qt virtualbox-guest-additions-iso
+if (( ${#MISSING[@]} )); then
+  log "Installing: ${MISSING[*]}"
+  sudo apt-get update
+  sudo apt-get install -y "${MISSING[@]}"
+else
+  log "KVM/libvirt/virt-manager packages already installed."
+fi
 
-log "VirtualBox installation complete."
-log "Launch: virtualbox"
+log "Enabling libvirt daemon..."
+sudo systemctl enable --now libvirtd || log "Could not enable libvirtd (socket-activated setups can ignore this)."
+
+# Add the invoking user (not root) to the libvirt/kvm groups
+TARGET_USER="${SUDO_USER:-$USER}"
+if [[ "$TARGET_USER" != "root" ]]; then
+  for grp in libvirt kvm; do
+    if getent group "$grp" >/dev/null && ! id -nG "$TARGET_USER" | tr ' ' '\n' | grep -qx "$grp"; then
+      log "Adding $TARGET_USER to group $grp..."
+      sudo usermod -aG "$grp" "$TARGET_USER"
+      NEED_RELOGIN=1
+    fi
+  done
+fi
+
+log "KVM + virt-manager installation complete."
+log "Launch: virt-manager"
+if [[ "${NEED_RELOGIN:-0}" == "1" ]]; then
+  log "Log out and back in (or run 'newgrp libvirt') for group membership to apply."
+fi

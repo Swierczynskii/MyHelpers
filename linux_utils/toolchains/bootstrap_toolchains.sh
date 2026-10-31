@@ -7,13 +7,15 @@ umask 022
 #
 # What it does:
 # - Installs Node.js from official tarball into ~/.local, enables Corepack, activates pnpm
+# - Installs Bun to ~/.local/bun
 # - Installs Rust via rustup to ~/.cargo/bin
-# - Installs Scala via official Coursier setup
+# - Installs Go from the official archive into ~/.local/go
 # - Installs Playwright globally via npm and downloads browser binaries
 # - Optionally installs system prerequisites, Podman, and terminal helpers via apt with --system
 # - Respects NODE_VERSION (e.g., v22.11.0); otherwise uses latest LTS when possible
 # - Adds PATH entries idempotently to common shell profiles
 # - Installs uv (Astral) to ~/.local/bin
+# - Sets the default GNOME Terminal profile to 8% transparency when available
 #
 # Behavior:
 # - Idempotent and safe to re-run; will skip work when tools already available
@@ -121,11 +123,11 @@ have() { command -v "$1" >/dev/null 2>&1; }
 
 usage() {
   cat <<'EOF'
-Usage: bash linux_utils/toolchains/bootstrap_toolchains.sh [--user|--system]
+Usage: bash linux_utils/toolchains/bootstrap_toolchains.sh [-u|--user] | [-s|--system]
 
 Options:
-  --user      Install only user-scoped toolchains and shell config (default)
-  --system    Also install apt prerequisites, terminal tools, Podman, and Playwright system deps
+  -u, --user    Install only user-scoped toolchains and shell config (default)
+  -s, --system  Also install apt prerequisites, terminal tools, Podman, and Playwright system deps
   -h, --help  Show this help message
 
 Run this script as your normal user. It calls sudo only for explicit --system steps.
@@ -135,10 +137,10 @@ EOF
 parse_args() {
   while (($#)); do
     case "$1" in
-      --user|--user-only)
+      -u|--user|--user-only)
         SYSTEM_MODE=0
         ;;
-      --system)
+      -s|--system)
         SYSTEM_MODE=1
         ;;
       -h|--help)
@@ -176,16 +178,6 @@ apt_pkg_available() {
   local cand
   cand="$(apt-cache policy "$pkg" 2>/dev/null | awk '/Candidate:/ {print $2}')"
   [[ -n "$cand" && "$cand" != "(none)" ]]
-}
-
-get_coursier_url() {
-  case "$(uname -m)" in
-    x86_64) printf '%s\n' "https://github.com/coursier/coursier/releases/latest/download/cs-x86_64-pc-linux.gz" ;;
-    aarch64|arm64) printf '%s\n' "https://github.com/coursier/coursier/releases/latest/download/cs-aarch64-pc-linux.gz" ;;
-    *)
-      return 1
-      ;;
-  esac
 }
 
 # Utilities
@@ -229,7 +221,7 @@ require_user_prereqs() {
   local missing=()
   local cmd
 
-  for cmd in awk curl grep gzip sed sha256sum tar xz; do
+  for cmd in awk curl grep gzip sed sha256sum tar unzip xz; do
     if ! have "$cmd"; then
       missing+=("$cmd")
     fi
@@ -282,6 +274,16 @@ install_top() {
   else
     log "Installing procps (provides top, watch) via apt..."
     sudo apt-get install -y procps
+  fi
+}
+
+install_vim() {
+  require_sudo
+  if have vim || dpkg -s vim >/dev/null 2>&1; then
+    log "Vim already installed: $(vim --version 2>/dev/null | head -n1 || echo 'present')"
+  else
+    log "Installing Vim via apt..."
+    sudo apt-get install -y vim
   fi
 }
 
@@ -448,7 +450,46 @@ install_node_corepack() {
 }
 
 # -------------------------------------------------------------------
-# 2) Playwright
+# 2) Bun (official installer)
+# - Installs to ~/.local/bun and keeps profile changes under our control
+# -------------------------------------------------------------------
+install_bun() {
+  local bun_install="$HOME/.local/bun"
+
+  ensure_path_entry "export BUN_INSTALL=\"\$HOME/.local/bun\""
+  ensure_path_entry "export PATH=\"\$BUN_INSTALL/bin:\$PATH\""
+  export BUN_INSTALL="$bun_install"
+  export PATH="$BUN_INSTALL/bin:$PATH"
+
+  if have bun; then
+    log "Bun already installed: $(bun --version 2>/dev/null || echo 'present')"
+    return
+  fi
+
+  local tmp_bun
+  tmp_bun="$(mktemp)"
+  trap 'rm -f "$tmp_bun"' RETURN
+
+  log "Installing Bun with staged official installer..."
+  if ! curl -fsSL 'https://bun.com/install' -o "$tmp_bun"; then
+    err 'Failed to download the Bun installer.'
+    exit 1
+  fi
+
+  # The installer normally edits one shell profile. Use an unsupported shell
+  # here, then manage PATH entries ourselves with ensure_path_entry above.
+  SHELL=/bin/false BUN_INSTALL="$bun_install" bash "$tmp_bun"
+  hash -r || true
+
+  if have bun; then
+    log "Bun installed: $(bun --version || true)"
+  else
+    warn "Bun installation completed, but bun is not visible in PATH. Open a new shell and try again."
+  fi
+}
+
+# -------------------------------------------------------------------
+# 3) Playwright
 # - Installs the Playwright CLI globally and downloads browser/system deps
 # -------------------------------------------------------------------
 install_playwright() {
@@ -486,7 +527,7 @@ install_playwright() {
 }
 
 # -------------------------------------------------------------------
-# 3) uv (Astral official installer)
+# 4) uv (Astral official installer)
 # - Installs to ~/.local/bin by default
 # -------------------------------------------------------------------
 install_uv() {
@@ -528,7 +569,7 @@ install_uv() {
 }
 
 # -------------------------------------------------------------------
-# 4) Rust (rustup official installer)
+# 5) Rust (rustup official installer)
 # - Installs rustup, cargo, and rustc to ~/.cargo/bin
 # -------------------------------------------------------------------
 install_rust() {
@@ -575,82 +616,91 @@ install_rust() {
   fi
 }
 
-link_coursier_apps_into_local_bin() {
-  local source_dir="$1"
-  local target_dir="$2"
-  local app
-  local apps=(amm coursier cs sbt sbtn scala scala-cli scalac scalafmt)
-
-  [[ -d "$source_dir" ]] || return 0
-
-  mkdir -p "$target_dir"
-  for app in "${apps[@]}"; do
-    if [[ -x "$source_dir/$app" ]]; then
-      ln -sfn "$source_dir/$app" "$target_dir/$app"
-    fi
-  done
-}
-
 # -------------------------------------------------------------------
-# 5) Scala via official Coursier setup
-# - Installs Scala tools with cs setup, and a JVM if none is available
+# 6) Go (official archive)
+# - Installs the latest stable Go release to ~/.local/go
 # -------------------------------------------------------------------
-install_scala() {
-  local scala_bin_dir="$HOME/.local/bin"
-  local cs_install_dir="$HOME/.local/share/coursier/bin"
+install_go() {
+  local go_root="$HOME/.local/go"
 
-  ensure_path_entry "export PATH=\"\$HOME/.local/bin:\$PATH\""
-  export PATH="$scala_bin_dir:$PATH"
-  # Coursier installs its managed apps under ~/.local/share/coursier/bin. Put that
-  # dir on PATH directly so Scala tools are visible even if the symlink step below
-  # does not run (e.g. cs setup ordering). The symlinks remain a convenience.
-  ensure_path_entry "export PATH=\"\$HOME/.local/share/coursier/bin:\$PATH\""
-  export PATH="$cs_install_dir:$PATH"
-  link_coursier_apps_into_local_bin "$cs_install_dir" "$scala_bin_dir"
-
-  if have cs && have scala && have scalac; then
-    log "Scala already installed: $(scala -version 2>&1 | head -n1 || echo 'present')"
+  if [[ -x "$go_root/bin/go" ]]; then
+    ensure_path_entry "export PATH=\"\$HOME/.local/go/bin:\$PATH\""
+    export PATH="$go_root/bin:$PATH"
+    log "Go already installed: $(go version 2>/dev/null || echo 'present')"
     return
   fi
 
-  local cs_tmp
-  local cs_url
-  local cs_bin
+  if have go; then
+    log "Go already installed: $(go version 2>/dev/null || echo 'present')"
+    return
+  fi
 
-  if have cs; then
-    cs_bin="$(command -v cs)"
-  else
-    if ! cs_url="$(get_coursier_url)"; then
-      warn "Unsupported arch $(uname -m) for Coursier native launcher; skipping Scala installation."
+  local version="${GO_VERSION:-}"
+  if [[ -z "$version" ]]; then
+    version="$(curl -fsSL 'https://go.dev/VERSION?m=text' | awk 'NR == 1 { print; exit }')"
+  fi
+  if [[ -z "$version" ]]; then
+    err "Unable to determine the latest stable Go version. Set GO_VERSION and rerun."
+    exit 1
+  fi
+  if [[ "$version" != go* ]]; then
+    version="go${version}"
+  fi
+
+  local arch
+  case "$(uname -m)" in
+    x86_64) arch="amd64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    *)
+      warn "Unsupported arch $(uname -m) for Go archive; skipping Go installation."
       return
-    fi
+      ;;
+  esac
 
-    log "Installing Coursier launcher for Scala setup..."
-    cs_tmp="$(mktemp -d)"
-    trap 'rm -rf "$cs_tmp"' RETURN
-    cs_bin="$cs_tmp/cs"
+  local tarball="${version}.linux-${arch}.tar.gz"
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' RETURN
 
-    if ! curl -fsSL "$cs_url" | gzip -d > "$cs_bin"; then
-      err "Failed to download or extract Coursier launcher from $cs_url"
-      exit 1
-    fi
-    chmod +x "$cs_bin"
+  log "Downloading Go ${version#go} (linux-${arch}) and verifying checksum..."
+  curl -fsSL 'https://go.dev/dl/?mode=json&include=all' -o "$tmp/releases.json"
+
+  local checksum
+  checksum="$(awk -v target="$tarball" '
+    index($0, "\"filename\": \"" target "\"") { found = 1; next }
+    found && /"sha256":/ {
+      sub(/^.*"sha256": "/, "")
+      sub(/".*$/, "")
+      print
+      exit
+    }
+  ' "$tmp/releases.json")"
+  if [[ ! "$checksum" =~ ^[[:xdigit:]]{64}$ ]]; then
+    err "Unable to find an official checksum for ${tarball}."
+    exit 1
   fi
 
-  log "Installing Scala via official Coursier setup..."
-  "$cs_bin" setup --yes --quiet --install-dir "$scala_bin_dir"
-  link_coursier_apps_into_local_bin "$cs_install_dir" "$scala_bin_dir"
+  curl -fsSL "https://go.dev/dl/${tarball}" -o "$tmp/$tarball"
+  printf '%s  %s\n' "$checksum" "$tmp/$tarball" | sha256sum -c - >/dev/null
+  tar -C "$tmp" -xzf "$tmp/$tarball"
+
+  local target="$HOME/.local/go-${version#go}"
+  mkdir -p "$HOME/.local"
+  rm -rf "$target"
+  mv "$tmp/go" "$target"
+  if [[ -e "$go_root" || -L "$go_root" ]]; then
+    rm -rf "$go_root"
+  fi
+  ln -sfn "$target" "$go_root"
+
+  ensure_path_entry "export PATH=\"\$HOME/.local/go/bin:\$PATH\""
+  export PATH="$go_root/bin:$PATH"
   hash -r || true
-
-  if have scala; then
-    log "Scala installed: $(scala -version 2>&1 | head -n1 || true)"
-  else
-    warn "Scala package installation completed, but 'scala' is still not visible in PATH."
-  fi
+  log "Go installed: $(go version || true)"
 }
 
 # -------------------------------------------------------------------
-# 6) Shell prompt setup in ~/.bashrc
+# 7) Shell prompt setup in ~/.bashrc
 # -------------------------------------------------------------------
 configure_bash_prompt() {
   local rc="$HOME/.bashrc"
@@ -682,6 +732,46 @@ EOF
 }
 
 # -------------------------------------------------------------------
+# 8) GNOME Terminal transparency
+# - Applies only to the default GNOME Terminal profile
+# -------------------------------------------------------------------
+configure_gnome_terminal() {
+  local transparency="${GNOME_TERMINAL_TRANSPARENCY:-8}"
+  if [[ ! "$transparency" =~ ^([0-9]|[1-9][0-9]|100)$ ]]; then
+    warn "GNOME_TERMINAL_TRANSPARENCY must be an integer from 0 to 100; skipping GNOME Terminal configuration."
+    return
+  fi
+
+  if ! have gsettings || ! gsettings list-schemas | grep -Fxq 'org.gnome.Terminal.ProfilesList'; then
+    log 'GNOME Terminal settings are unavailable; skipping transparency configuration.'
+    return
+  fi
+
+  local profile_id
+  profile_id="$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null || true)"
+  profile_id="${profile_id//\'/}"
+  if [[ -z "$profile_id" ]]; then
+    warn 'GNOME Terminal has no default profile; skipping transparency configuration.'
+    return
+  fi
+
+  local profile_schema="org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile_id}/"
+  if [[ "$(gsettings writable "$profile_schema" use-transparent-background 2>/dev/null || true)" != 'true' ||
+        "$(gsettings writable "$profile_schema" background-transparency-percent 2>/dev/null || true)" != 'true' ]]; then
+    warn 'The default GNOME Terminal profile is locked; skipping transparency configuration.'
+    return
+  fi
+
+  if ! gsettings set "$profile_schema" use-transparent-background true ||
+     ! gsettings set "$profile_schema" background-transparency-percent "$transparency"; then
+    warn 'Unable to update GNOME Terminal transparency. Run setup from your GNOME desktop session and try again.'
+    return
+  fi
+
+  log "Set default GNOME Terminal profile transparency to ${transparency}%."
+}
+
+# -------------------------------------------------------------------
 # Execute
 # -------------------------------------------------------------------
 parse_args "$@"
@@ -694,6 +784,7 @@ if (( SYSTEM_MODE )); then
   install_tmux
   install_fzf
   install_top
+  install_vim
   install_podman
 else
   require_user_prereqs
@@ -701,14 +792,18 @@ else
 fi
 section "Installing Node.js and Corepack"
 install_node_corepack
+section "Installing Bun"
+install_bun
 section "Installing Playwright"
 install_playwright
 section "Installing Rust"
 install_rust
+section "Installing Go"
+install_go
 section "Installing uv"
 install_uv
-section "Installing Scala"
-install_scala
 section "Configuring shell prompt"
 configure_bash_prompt
+section "Configuring GNOME Terminal"
+configure_gnome_terminal
 log "Toolchain bootstrap completed."

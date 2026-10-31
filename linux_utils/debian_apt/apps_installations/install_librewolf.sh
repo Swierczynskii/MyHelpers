@@ -1,3 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 022
+export DEBIAN_FRONTEND=noninteractive
+
 COLOR_ENABLED=0
 if [[ "${FORCE_COLOR:-0}" == "1" || -t 1 ]]; then
   COLOR_ENABLED=1
@@ -63,7 +68,8 @@ print_box() {
 }
 
 timestamp() {
-  local ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
+  local ts
+  ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
   if (( COLOR_ENABLED )); then
     printf '%b%s%b' "$TIMESTAMP_COLOR" "$ts" "$NC"
   else
@@ -83,35 +89,39 @@ title() {
   print_box "$*" "$TITLE_COLOR"
 }
 
-have() { command -v "$1" >/dev/null 2>&1; }
+if [[ "${SKIP_INSTALLER_TITLE:-0}" != "1" ]]; then
+  title "Installing LibreWolf"
+fi
 
-require_tuned_adm() {
-  if ! have tuned-adm; then
-    err "'tuned-adm' not found. Install the 'tuned' package."
-    exit 1
-  fi
-}
+if ! command -v apt >/dev/null 2>&1; then
+  err "apt not found. This script supports Debian/Ubuntu-based systems."
+  exit 1
+fi
 
-show_current_tuned_profile() {
-  local message="$1"
-  require_tuned_adm
-  title "$message"
-  tuned-adm active
-}
+# Remove the Snap build of Firefox (explicitly requested; LibreWolf replaces it)
+if command -v snap >/dev/null 2>&1 && snap list firefox >/dev/null 2>&1; then
+  log "Removing Snap Firefox (profile data in ~/snap/firefox is purged)..."
+  sudo snap remove --purge firefox
+else
+  log "Snap Firefox not present."
+fi
 
-switch_tuned_profile() {
-  local profile="$1"
+log "Checking if LibreWolf is already installed..."
+if dpkg -s librewolf >/dev/null 2>&1 || command -v librewolf >/dev/null 2>&1; then
+  log "librewolf already installed. Skipping."
+  exit 0
+fi
 
-  require_tuned_adm
-  title 'Current tuned profile (before)'
-  tuned-adm active || true
+log "Installing extrepo (manages the signed LibreWolf APT repo)..."
+sudo apt-get update
+sudo apt-get install -y extrepo
 
-  title "Switching to profile: ${profile}"
-  if ! tuned-adm profile "$profile"; then
-    err "Failed to apply profile '${profile}'. You may need to run this script with sudo."
-    exit 1
-  fi
+log "Enabling LibreWolf repository..."
+sudo extrepo enable librewolf
 
-  title 'Current tuned profile (after)'
-  tuned-adm active
-}
+log "Installing librewolf..."
+sudo apt-get update
+sudo apt-get install -y librewolf
+
+log "LibreWolf installation complete."
+log "Launch: librewolf"

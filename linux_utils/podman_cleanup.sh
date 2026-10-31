@@ -9,7 +9,7 @@ umask 022
 # - Always previews what will be removed
 # - Default run asks for confirmation before deleting anything
 # - DRY_RUN=1 shows the preview and exits without deleting anything
-# - --select opens a terminal TUI (fzf) to choose any containers/images
+# - -s / --select opens a terminal TUI (fzf) to choose any containers/images
 # - Default mode removes only:
 #   - non-running containers
 #   - untagged ('<none>' / '<none>') images
@@ -17,7 +17,7 @@ umask 022
 #
 # Usage:
 #   ./podman_cleanup.sh
-#   ./podman_cleanup.sh --select
+#   ./podman_cleanup.sh -s
 #   DRY_RUN=1 ./podman_cleanup.sh
 #   AUTO_APPROVE=1 ./podman_cleanup.sh
 # -----------------------------------------------------------------------------
@@ -67,11 +67,11 @@ print_header() {
 usage() {
     cat <<'USAGE'
 Usage:
-  ./podman_cleanup.sh [--select] [--help]
+  ./podman_cleanup.sh [-s|--select] [-h|--help]
 
 Options:
-  --select   Open an fzf terminal selector to choose any containers/images
-  --help     Show this help text
+  -s, --select  Open an fzf terminal selector to choose any containers/images
+  -h, --help    Show this help text
 
 Environment:
   DRY_RUN=1       Show preview only; do not delete anything
@@ -117,7 +117,7 @@ truncate_text() {
 parse_args() {
     while (( $# > 0 )); do
         case "$1" in
-            --select)
+            -s|--select)
                 SELECT_MODE=1
                 ;;
             -h|--help)
@@ -305,6 +305,7 @@ fzf_select_ids() {
             --prompt "$title> " \
             --header "$header" \
             --bind 'tab:toggle+down,shift-tab:toggle+up,ctrl-a:select-all,ctrl-d:deselect-all' \
+            --bind 'enter:transform:[[ ${FZF_SELECT_COUNT:-0} -gt 0 ]] && echo accept || echo ignore' \
             --preview 'printf "%s\n" {}' \
             --preview-window 'down,3,wrap' \
             --delimiter=$'\t' \
@@ -338,7 +339,7 @@ select_targets_tui() {
     if [[ -n "$containers_output" ]]; then
         if ! mapfile -t SELECTED_CONTAINERS < <(fzf_select_ids \
             "containers" \
-            "Tab marks rows, Enter confirms, Esc cancels. Running containers can be selected here." \
+            "Tab marks rows (at least one required), Enter confirms, Esc cancels. Running containers can be selected here." \
             "$containers_output" \
             "container"); then
             print_header "Selection cancelled" "$YELLOW"
@@ -350,7 +351,7 @@ select_targets_tui() {
     if [[ -n "$images_output" ]]; then
         if ! mapfile -t SELECTED_IMAGES < <(fzf_select_ids \
             "images" \
-            "Tab marks rows, Enter confirms, Esc cancels. Tagged and <none>:<none> images can be selected here." \
+            "Tab marks rows (at least one required), Enter confirms, Esc cancels. Tagged and <none>:<none> images can be selected here." \
             "$images_output" \
             "image"); then
             print_header "Selection cancelled" "$YELLOW"
