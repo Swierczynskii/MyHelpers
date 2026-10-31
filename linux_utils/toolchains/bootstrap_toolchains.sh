@@ -6,15 +6,11 @@ umask 022
 # Bootstrap developer toolchains for a single user.
 #
 # What it does:
-# - Installs Node.js from official tarball into ~/.local, enables Corepack, activates pnpm
-# - Installs Bun to ~/.local/bun
-# - Installs Rust via rustup to ~/.cargo/bin
-# - Installs Go from the official archive into ~/.local/go
+# - With --system: installs apt prerequisites, mise (signed APT repo), Podman, and terminal helpers
+# - Installs global toolchains with mise: Node.js 26 (LTS), pnpm, Go, Rust (stable), Bun, uv
+#   (Python versions are managed by uv; per-project versions go in each repo's mise.toml)
 # - Installs Playwright globally via npm and downloads browser binaries
-# - Optionally installs system prerequisites, Podman, and terminal helpers via apt with --system
-# - Respects NODE_VERSION (e.g., v22.11.0); otherwise uses latest LTS when possible
-# - Adds PATH entries idempotently to common shell profiles
-# - Installs uv (Astral) to ~/.local/bin
+# - Adds mise activation/shims and PATH entries idempotently to shell profiles
 # - Sets the default GNOME Terminal profile to 8% transparency when available
 #
 # Behavior:
@@ -35,6 +31,8 @@ source "$TECH_DIR/common.sh"
 # Each technology lives in technologies/<name>.sh; sourced here so PATH changes carry over.
 # shellcheck source=technologies/install_prereqs.sh
 source "$TECH_DIR/install_prereqs.sh"
+# shellcheck source=technologies/install_mise.sh
+source "$TECH_DIR/install_mise.sh"
 # shellcheck source=technologies/install_tmux.sh
 source "$TECH_DIR/install_tmux.sh"
 # shellcheck source=technologies/install_fzf.sh
@@ -43,18 +41,10 @@ source "$TECH_DIR/install_fzf.sh"
 source "$TECH_DIR/install_top.sh"
 # shellcheck source=technologies/install_podman.sh
 source "$TECH_DIR/install_podman.sh"
-# shellcheck source=technologies/install_node.sh
-source "$TECH_DIR/install_node.sh"
-# shellcheck source=technologies/install_bun.sh
-source "$TECH_DIR/install_bun.sh"
+# shellcheck source=technologies/configure_mise_tools.sh
+source "$TECH_DIR/configure_mise_tools.sh"
 # shellcheck source=technologies/install_playwright.sh
 source "$TECH_DIR/install_playwright.sh"
-# shellcheck source=technologies/install_uv.sh
-source "$TECH_DIR/install_uv.sh"
-# shellcheck source=technologies/install_rust.sh
-source "$TECH_DIR/install_rust.sh"
-# shellcheck source=technologies/install_go.sh
-source "$TECH_DIR/install_go.sh"
 # shellcheck source=technologies/configure_bash_prompt.sh
 source "$TECH_DIR/configure_bash_prompt.sh"
 # shellcheck source=technologies/configure_gnome_terminal.sh
@@ -65,8 +55,8 @@ usage() {
 Usage: bash linux_utils/toolchains/bootstrap_toolchains.sh [-u|--user] | [-s|--system]
 
 Options:
-  -u, --user    Install only user-scoped toolchains and shell config (default)
-  -s, --system  Also install apt prerequisites, terminal tools, Podman, and Playwright system deps
+  -u, --user    Install only mise-managed toolchains and shell config; requires mise (default)
+  -s, --system  Also install apt prerequisites, mise, terminal tools, Podman, and Playwright system deps
   -h, --help  Show this help message
 
 Run this script as your normal user. It calls sudo only for explicit --system steps.
@@ -105,49 +95,26 @@ parse_args() {
   esac
 }
 
-require_user_prereqs() {
-  local missing=()
-  local cmd
-
-  for cmd in awk curl grep gzip sed sha256sum tar unzip xz; do
-    if ! have "$cmd"; then
-      missing+=("$cmd")
-    fi
-  done
-
-  if [[ ${#missing[@]} -gt 0 ]]; then
-    err "Missing required user-mode commands: ${missing[*]}. Install them with your package manager, or rerun with --system to install apt prerequisites."
-    exit 1
-  fi
-}
-
 parse_args "$@"
 guard_against_sudo
 log "Bootstrapping toolchains..."
 if (( SYSTEM_MODE )); then
   section "Installing system prerequisites"
   install_prereqs
+  section "Installing mise"
+  install_mise
   section "Installing terminal and container tools"
   install_tmux
   install_fzf
   install_top
   install_podman
 else
-  require_user_prereqs
-  log "User mode selected; skipping apt prerequisites, terminal tools, Podman, and Playwright system dependencies."
+  log "User mode selected; skipping apt prerequisites, mise installation, terminal tools, Podman, and Playwright system dependencies."
 fi
-section "Installing Node.js and Corepack"
-install_node_corepack
-section "Installing Bun"
-install_bun
+section "Installing global toolchains with mise"
+configure_mise_tools
 section "Installing Playwright"
 install_playwright
-section "Installing Rust"
-install_rust
-section "Installing Go"
-install_go
-section "Installing uv"
-install_uv
 section "Configuring shell prompt"
 configure_bash_prompt
 section "Configuring GNOME Terminal"

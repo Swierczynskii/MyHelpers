@@ -108,6 +108,8 @@ log "Updating package lists..."
 sudo apt-get update
 
 log "Installing wireshark..."
+# sudo drops DEBIAN_FRONTEND, so preseed the capture prompt: no setuid dumpcap (deterministic, unattended).
+echo 'wireshark-common wireshark-common/install-setuid boolean false' | sudo debconf-set-selections
 sudo apt-get install -y wireshark
 
 log "Wireshark installation complete."

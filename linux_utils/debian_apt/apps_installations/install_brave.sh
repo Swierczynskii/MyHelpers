@@ -132,9 +132,9 @@ LIST="/etc/apt/sources.list.d/brave-browser-release.list"
 download_to() {
   local url="$1" dest="$2"
   if command -v curl >/dev/null 2>&1; then
-    sudo curl -fsSL "$url" -o "$dest"
+    curl -fsSL "$url" -o "$dest"
   else
-    sudo wget -qO "$dest" "$url"
+    wget -qO "$dest" "$url"
   fi
 }
 
@@ -147,8 +147,11 @@ elif [[ -f "$KEYRING_LEGACY" ]]; then
   log "Using legacy keyring: $KEYRING"
 else
   log "Downloading keyring to $KEYRING_DEFAULT"
-  download_to "${BRAVE_URL}brave-browser-archive-keyring.gpg" "$KEYRING_DEFAULT"
-  sudo chmod 0644 "$KEYRING_DEFAULT"
+  # Download as the user, then install; a failed download never leaves a partial keyring behind.
+  TMP_KEY="$(mktemp)"
+  trap 'rm -f "$TMP_KEY"' EXIT
+  download_to "${BRAVE_URL}brave-browser-archive-keyring.gpg" "$TMP_KEY"
+  sudo install -m 0644 "$TMP_KEY" "$KEYRING_DEFAULT"
   KEYRING="$KEYRING_DEFAULT"
 fi
 

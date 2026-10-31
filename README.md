@@ -21,15 +21,14 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
 
 ### What the setup does
 1) Bootstraps developer toolchains via [linux_utils/toolchains/bootstrap_toolchains.sh](linux_utils/toolchains/bootstrap_toolchains.sh)
-   - Each technology is a separate script under [linux_utils/toolchains/technologies](linux_utils/toolchains/technologies) (e.g. `install_go.sh`, `install_node.sh`), sourced by the bootstrap and also runnable on its own: `bash linux_utils/toolchains/technologies/install_go.sh`; shared helpers live in `common.sh`
-   - Node.js (installed via official tarball into `~/.local/node`; Corepack enabled and pnpm activated)
-   - Bun (installed via the official installer into `~/.local/bun`)
-   - Rust (installed via official `rustup` into `~/.cargo/bin`)
-   - Go (latest stable release installed from the official checksum-verified archive into `~/.local/go`; override with `GO_VERSION`)
+   - Each step is a separate script under [linux_utils/toolchains/technologies](linux_utils/toolchains/technologies) (e.g. `install_mise.sh`, `configure_mise_tools.sh`), sourced by the bootstrap and also runnable on its own: `bash linux_utils/toolchains/technologies/configure_mise_tools.sh`; shared helpers live in `common.sh`
+   - mise (installed first, from its signed APT repository with a pinned key fingerprint; `mise activate` is added to `~/.bashrc` and `~/.zshrc` unless an activation already exists)
+   - Global toolchains via mise (`mise use --global`, recorded in `~/.config/mise/config.toml`): Node.js 26 (current LTS line, pinned by major), pnpm, Go, Rust stable (through rustup), Bun, uv
+   - mise shims are added to `~/.profile` (and an existing `~/.bash_profile`) so non-interactive shells, scripts, and GUI apps find the tools too
+   - Python is not managed by mise: use uv (`uv python install`, `.python-version`, `pyproject.toml`)
+   - Per-project versions: run `mise use <tool>@<version>` inside a repo to write its own `mise.toml`, which overrides the global defaults there (mise asks you to `mise trust` it once). `.nvmrc`/`.node-version` are read only after `mise settings add idiomatic_version_file_enable_tools node`
    - Playwright (installed globally from npm, then browser binaries are installed for the user)
    - Podman, tmux, fzf, procps/top, apt prerequisites, and Playwright Linux deps are installed via apt
-   - uv (Astral official installer)
-   - Adds the necessary PATH entries idempotently to your shell profiles
    - Sets the default GNOME Terminal profile to 8% transparency when GNOME Terminal settings are available; override with `GNOME_TERMINAL_TRANSPARENCY` (0–100)
 
 1a) Installs Claude Code via [linux_utils/toolchains/install_claude.sh](linux_utils/toolchains/install_claude.sh) (Anthropic official installer)
@@ -43,8 +42,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
 3) Copies upgrade helpers to `$HOME` (idempotent)
    - Source file:
      - Debian/Ubuntu: [linux_utils/debian_apt/upgrade.sh](linux_utils/debian_apt/upgrade.sh)
-   - [linux_utils/toolchains/inspect_go_installation.sh](linux_utils/toolchains/inspect_go_installation.sh) is copied to `~/inspect_go_installation.sh`
-   - `~/upgrade.sh --go` detects the active Go installation: it updates MyHelpers and official `/usr/local/go` installs, relies on the preceding APT upgrade for APT-managed Go, and skips unrecognized version managers safely. Official system updates retain a rollback backup.
+   - `~/upgrade.sh` runs the apt steps (which also update mise itself); add `--mise` for `mise upgrade` (Node.js, pnpm, Go, Bun, uv), `--rust` for `rustup update`, `--claude` for Claude Code, or `--all` for everything
 
 3a) Ensures system monitor helper is available
    - Installs lm-sensors if missing
@@ -93,12 +91,10 @@ You can run any installer directly if you don’t want the full bundle.
 ### Manual usage
 - Run only the toolchain bootstrap:
   - `bash linux_utils/toolchains/bootstrap_toolchains.sh`
-  - Add `-s` (or `--system`) to install apt prerequisites, Podman, terminal helpers, and Playwright system dependencies
-  - Optional: override Node version by exporting `NODE_VERSION` (e.g., `NODE_VERSION=v22.11.0`)
-  - Optional: override Go version by exporting `GO_VERSION` (e.g., `GO_VERSION=go1.26.4`)
-  - Inspect the active Go installation and its update method: `bash linux_utils/toolchains/inspect_go_installation.sh`
-  - Optional: set `SYSTEM_NODE=1` with `--system` to install Node under `/usr/local/node` instead of `~/.local/node`
-  - Optional: verify installed toolchains with `node -v`, `bun --version`, `rustc --version`, `go version`, `playwright --version`, and `podman --version`
+  - Add `-s` (or `--system`) to install apt prerequisites, mise, Podman, terminal helpers, and Playwright system dependencies
+  - Without `--system`, mise must already be installed
+  - Change global versions with `mise use --global node@<major>` (etc.); list them with `mise ls --global`
+  - Optional: verify installed toolchains with `mise doctor`, `node -v`, `pnpm -v`, `bun --version`, `rustc --version`, `go version`, `uv --version`, `playwright --version`, and `podman --version`
 - Run only the Claude Code installer:
   - `bash linux_utils/toolchains/install_claude.sh`
 - Run the Podman cleanup helper directly:

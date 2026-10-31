@@ -4,10 +4,10 @@ umask 022
 # -----------------------------------------------------------------------------
 # linux_utils/setup.sh
 # Orchestrated Linux setup for a single user on Debian/Ubuntu.
-# - Bootstraps user-scoped developer toolchains (Node.js + Corepack/pnpm, Bun, Rust, Go, Playwright, uv)
-# - Installs AI CLIs and syncs user config
+# - Installs mise and the global toolchains it manages (Node.js 26 LTS, pnpm, Go, Rust, Bun, uv), plus Playwright
+# - Installs Claude Code
 # - Runs system package/app installers (uses sudo)
-# - Copies backend-specific upgrade.sh and Go installation inspector to $HOME
+# - Copies backend-specific upgrade.sh to $HOME
 # - Copies monitor.sh and podman_cleanup.sh to $HOME
 # Safe to re-run; individual steps are idempotent.
 # -----------------------------------------------------------------------------
@@ -30,7 +30,8 @@ strip_ansi() {
 }
 
 sanitize_log_stream() {
-  sed -u -E $'s/\r//g; s/\x1B\\[[0-9;?]*[ -/]*[@-~]//g'
+  # LC_ALL=C: bracket ranges like [@-~] follow locale collation in UTF-8 and miss ANSI codes.
+  LC_ALL=C sed -u -E $'s/\r//g; s/\x1B\\[[0-9;?]*[ -/]*[@-~]//g'
 }
 
 repeat_char() {
@@ -294,7 +295,7 @@ else
 fi
 validate_backend "$BACKEND"
 
-# 1) Bootstrap developer toolchains (Node.js + Corepack/pnpm, Bun, Rust, Go, Playwright, Podman, uv)
+# 1) Bootstrap mise + developer toolchains (Node.js, pnpm, Go, Rust, Bun, uv), Playwright, Podman
 section "Bootstrapping toolchains"
 TOOLCHAIN_BOOTSTRAP="$SCRIPT_DIR/toolchains/bootstrap_toolchains.sh"
 if [[ -f "$TOOLCHAIN_BOOTSTRAP" ]]; then
@@ -355,11 +356,6 @@ section "Deploying helper scripts"
 SRC_UPGRADE="$SCRIPT_DIR/$BACKEND/upgrade.sh"
 DEST_UPGRADE="$HOME/upgrade.sh"
 deploy_helper_script "$SRC_UPGRADE" "$DEST_UPGRADE" 'upgrade.sh'
-
-# 3a) Copy Go installation inspector to $HOME (force overwrite) and ensure executable
-SRC_GO_INSPECTOR="$SCRIPT_DIR/toolchains/inspect_go_installation.sh"
-DEST_GO_INSPECTOR="$HOME/inspect_go_installation.sh"
-deploy_helper_script "$SRC_GO_INSPECTOR" "$DEST_GO_INSPECTOR" 'inspect_go_installation.sh'
 
 # 3b) Copy monitor.sh helper to $HOME (force overwrite) and ensure executable
 SRC_MONITOR="$SCRIPT_DIR/monitor.sh"

@@ -43,7 +43,11 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 info "Installing Claude Code with Anthropic native installer..."
-curl -fsSL https://claude.ai/install.sh | sh
+# Stage the installer so a dropped connection can't execute a truncated script.
+tmp_installer="$(mktemp)"
+trap 'rm -f "$tmp_installer"' EXIT
+curl -fsSL https://claude.ai/install.sh -o "$tmp_installer"
+sh "$tmp_installer"
 hash -r || true
 
 if command -v claude >/dev/null 2>&1; then

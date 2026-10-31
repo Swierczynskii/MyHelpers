@@ -236,7 +236,9 @@ if [[ -z "$MODE" ]]; then
       3|*) MODE='both' ;;
     esac
   else
-    log "Non-interactive stdin detected; defaulting to 'Both'."
+    # Desktop only: 'both'/'web' pull in apache2, which listens on all interfaces.
+    MODE='desktop'
+    log "Non-interactive session detected; defaulting to 'Desktop' (web mode installs Apache)."
   fi
 fi
 

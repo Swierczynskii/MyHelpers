@@ -131,6 +131,10 @@ ensure_path_entry() {
   local line="$1"
   local shell_profiles=("$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zshrc" "$HOME/.profile")
   for f in "${shell_profiles[@]}"; do
+    # Never create ~/.bash_profile: once it exists, bash login shells stop reading ~/.profile.
+    if [[ "$f" == "$HOME/.bash_profile" && ! -f "$f" ]]; then
+      continue
+    fi
     append_unique_line "$f" "$line"
   done
 }
