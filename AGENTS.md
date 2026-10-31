@@ -8,8 +8,7 @@ Instructions for agents working in this repository.
 ## Repository Layout
 - `linux_utils/` contains Linux shell helpers and setup flows.
 - `linux_utils/debian_apt/apps_installations/` contains Debian/Ubuntu app installer scripts.
-- `linux_utils/toolchains/` contains developer toolchain bootstrap scripts.
-- `win_utils/` contains Windows batch/PowerShell helpers.
+- `linux_utils/toolchains/` contains developer toolchain bootstrap scripts; `technologies/` holds one script per step (sourced by `bootstrap_toolchains.sh`, shared helpers in `common.sh`), and language toolchains are managed through mise (`configure_mise_tools.sh`).
 - `README.md` documents end-user behavior and should stay aligned with user-facing changes.
 
 ## Shell Script Conventions
