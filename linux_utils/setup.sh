@@ -4,7 +4,7 @@ umask 022
 # -----------------------------------------------------------------------------
 # linux_utils/setup.sh
 # Orchestrated Linux setup for a single user on Debian/Ubuntu.
-# - Installs mise and the global toolchains it manages (Node.js 26 LTS, pnpm, Go, Rust, Bun, uv), plus Playwright
+# - Installs mise and the global toolchains it manages (Node.js LTS, pnpm, Go, Rust, Bun, uv), plus Playwright
 # - Installs Claude Code
 # - Runs system package/app installers (uses sudo)
 # - Copies backend-specific upgrade.sh to $HOME
@@ -31,7 +31,8 @@ strip_ansi() {
 
 sanitize_log_stream() {
   # LC_ALL=C: bracket ranges like [@-~] follow locale collation in UTF-8 and miss ANSI codes.
-  LC_ALL=C sed -u -E $'s/\r//g; s/\x1B\\[[0-9;?]*[ -/]*[@-~]//g'
+  # Carriage returns: drop CRLF endings, then keep only the last redraw of progress lines (as a terminal shows).
+  LC_ALL=C sed -u -E $'s/\r$//; s/.*\r//; s/\x1B\\[[0-9;?]*[ -/]*[@-~]//g'
 }
 
 repeat_char() {

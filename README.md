@@ -23,7 +23,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
 1) Bootstraps developer toolchains via [linux_utils/toolchains/bootstrap_toolchains.sh](linux_utils/toolchains/bootstrap_toolchains.sh)
    - Each step is a separate script under [linux_utils/toolchains/technologies](linux_utils/toolchains/technologies) (e.g. `install_mise.sh`, `configure_mise_tools.sh`), sourced by the bootstrap and also runnable on its own: `bash linux_utils/toolchains/technologies/configure_mise_tools.sh`; shared helpers live in `common.sh`
    - mise (installed first, from its signed APT repository with a pinned key fingerprint; `mise activate` is added to `~/.bashrc` and `~/.zshrc` unless an activation already exists)
-   - Global toolchains via mise (`mise use --global`, recorded in `~/.config/mise/config.toml`): Node.js 26 (current LTS line, pinned by major), pnpm, Go, Rust stable (through rustup), Bun, uv
+   - Global toolchains via mise (`mise use --global`, recorded in `~/.config/mise/config.toml`): Node.js LTS (follows each new LTS line automatically), pnpm, Go, Rust stable (through rustup), Bun, uv
    - mise shims are added to `~/.profile` (and an existing `~/.bash_profile`) so non-interactive shells, scripts, and GUI apps find the tools too
    - Python is not managed by mise: use uv (`uv python install`, `.python-version`, `pyproject.toml`)
    - Per-project versions: run `mise use <tool>@<version>` inside a repo to write its own `mise.toml`, which overrides the global defaults there (mise asks you to `mise trust` it once). `.nvmrc`/`.node-version` are read only after `mise settings add idiomatic_version_file_enable_tools node`

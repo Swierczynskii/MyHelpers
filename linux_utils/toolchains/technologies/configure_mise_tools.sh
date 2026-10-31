@@ -9,9 +9,8 @@ umask 022
 # shellcheck source=common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
-# Node is pinned to the current LTS major (26, LTS since 2026-10-28): 'node@lts' can lag behind
-# new LTS promotions in mise's version index. Bump the major when the next LTS line lands.
-MISE_GLOBAL_TOOLS=(node@26 pnpm@latest go@latest rust@stable bun@latest uv@latest)
+# node@lts follows each new LTS line automatically (mise upgrade moves to it).
+MISE_GLOBAL_TOOLS=(node@lts pnpm@latest go@latest rust@stable bun@latest uv@latest)
 
 configure_mise_tools() {
   if ! have mise; then
