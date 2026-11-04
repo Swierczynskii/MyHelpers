@@ -40,7 +40,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
 3) Copies upgrade helpers to `$HOME` (idempotent)
    - Source file:
      - Debian/Ubuntu: [linux_utils/debian_apt/upgrade.sh](linux_utils/debian_apt/upgrade.sh)
-   - `~/upgrade.sh` runs the apt steps (which also update mise itself); add `--mise` for `mise upgrade` (Node.js, pnpm, Go, Bun, uv, sqlite3def), `--rust` for `rustup update`, `--claude` for Claude Code, or `--all` for everything
+   - `~/upgrade.sh` runs the apt steps (which also update mise itself); add `--mise` for `mise upgrade` (Node.js, pnpm, Go, Bun, uv, sqlite3def), `--rust` for `rustup update`, `--claude` for Claude Code, or `--all` for everything; it also re-points the pgAdmin APT repo to the current Ubuntu codename after a release upgrade
 
 3a) Ensures system monitor helper is available
    - Installs lm-sensors if missing
@@ -56,13 +56,17 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
    - `fzf` is installed by the bootstrap/setup flow and used as the only selector backend
    - `DRY_RUN=1` shows the preview only and deletes nothing
 
-3c) Configures a macOS-like close-window shortcut (best-effort)
+3c) Ensures bash history cleanup helper is available
+   - Copies [linux_utils/clear_bash_history.sh](linux_utils/clear_bash_history.sh) to `$HOME/clear_bash_history.sh` and marks it executable (idempotent)
+   - No option prints help; `--orphans` removes `~/.bash_history-*.tmp`, `--file` empties `~/.bash_history`, `--session` clears the current shell's in-memory history (only when sourced: `. ~/clear_bash_history.sh --session`), `--all` does orphans + file (+ session when sourced)
+
+3d) Configures a macOS-like close-window shortcut (best-effort)
    - Setup runs [linux_utils/macos_quit_shortcut.sh](linux_utils/macos_quit_shortcut.sh) directly; it is not copied to `$HOME`
    - On GNOME, it replaces the default `Alt+F4` close-window shortcut with `Super+Q`, the closest Linux equivalent to macOS `Command+Q`
    - Before assigning it, setup clears an existing single `Super+Q` shortcut so a competing GNOME component such as Ubuntu Dock cannot capture it
    - It closes the current app window; applications with multiple windows may remain open
 
-3d) Writes setup log to repository `logs/setup.log`
+3e) Writes setup log to repository `logs/setup.log`
    - Overwrites on each run (single log file, no log-file buildup)
    - Terminal output is colorized for readability, while the saved log remains plain text with terminal control sequences stripped
    - Major setup and installer phases use boxed terminal headers again for easier scanning

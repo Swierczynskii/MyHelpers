@@ -211,7 +211,27 @@ done
 
 guard_against_sudo
 
+sync_pgadmin_repo() {
+  # pgAdmin's APT repo is per-release (.../apt/<codename>/); follow release upgrades.
+  local f cur new url
+  new="$(lsb_release -cs 2>/dev/null)" || return 0
+  for f in /etc/apt/sources.list.d/pgadmin4.sources /etc/apt/sources.list.d/pgadmin4.list; do
+    [[ -f "$f" ]] || continue
+    cur="$(grep -oE 'pgadmin4/apt/[a-z]+' "$f" | head -1 | cut -d/ -f3)"
+    [[ -n "$cur" && "$cur" != "$new" ]] || continue
+    url="https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/${new}/dists/pgadmin4/Release"
+    if curl -fsI "$url" >/dev/null 2>&1; then
+      log "Switching pgAdmin APT repo: ${cur} -> ${new}"
+      sudo sed -i "s#pgadmin4/apt/${cur}#pgadmin4/apt/${new}#; s/^Enabled: no/Enabled: yes/" "$f"
+    else
+      log "pgAdmin APT repo not published for ${new} yet; keeping ${cur}."
+    fi
+  done
+}
+
 title 'Starting system upgrade'
+
+sync_pgadmin_repo
 
 log 'Running apt-get update...'
 if ! sudo apt-get update; then

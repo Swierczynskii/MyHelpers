@@ -8,7 +8,7 @@ umask 022
 # - Installs Claude Code
 # - Runs system package/app installers (uses sudo)
 # - Copies backend-specific upgrade.sh to $HOME
-# - Copies monitor.sh and podman_cleanup.sh to $HOME
+# - Copies monitor.sh, podman_cleanup.sh and clear_bash_history.sh to $HOME
 # Safe to re-run; individual steps are idempotent.
 # -----------------------------------------------------------------------------
 
@@ -367,6 +367,11 @@ deploy_helper_script "$SRC_MONITOR" "$DEST_MONITOR" 'monitor.sh'
 SRC_PODMAN_CLEANUP="$SCRIPT_DIR/podman_cleanup.sh"
 DEST_PODMAN_CLEANUP="$HOME/podman_cleanup.sh"
 deploy_helper_script "$SRC_PODMAN_CLEANUP" "$DEST_PODMAN_CLEANUP" 'podman_cleanup.sh'
+
+# 3c2) Copy clear_bash_history.sh helper to $HOME (force overwrite) and ensure executable
+SRC_CLEAR_HISTORY="$SCRIPT_DIR/clear_bash_history.sh"
+DEST_CLEAR_HISTORY="$HOME/clear_bash_history.sh"
+deploy_helper_script "$SRC_CLEAR_HISTORY" "$DEST_CLEAR_HISTORY" 'clear_bash_history.sh'
 
 # 3d) Configure a macOS-like GNOME close-window shortcut (best effort)
 section "Configuring GNOME close-window shortcut"
