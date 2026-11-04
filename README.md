@@ -79,12 +79,14 @@ You can run any installer directly if you don’t want the full bundle.
 - Debian/Ubuntu (apt):
   - Brave: [linux_utils/debian_apt/apps_installations/install_brave.sh](linux_utils/debian_apt/apps_installations/install_brave.sh)
   - VS Code: [linux_utils/debian_apt/apps_installations/install_code.sh](linux_utils/debian_apt/apps_installations/install_code.sh)
+  - VSCodium (official VSCodium APT repository; amd64/arm64; installs `codium`): [linux_utils/debian_apt/apps_installations/install_codium.sh](linux_utils/debian_apt/apps_installations/install_codium.sh)
   - Google Chrome: [linux_utils/debian_apt/apps_installations/install_google_chrome.sh](linux_utils/debian_apt/apps_installations/install_google_chrome.sh)
   - KeePassXC: [linux_utils/debian_apt/apps_installations/install_keepassxc.sh](linux_utils/debian_apt/apps_installations/install_keepassxc.sh)
   - LibreWolf (via `extrepo`; also removes Snap Firefox if present, purging its Snap profile data): [linux_utils/debian_apt/apps_installations/install_librewolf.sh](linux_utils/debian_apt/apps_installations/install_librewolf.sh)
   - pgAdmin 4 (official pgAdmin APT repository; asks for web, desktop, or both, and offers the missing variant if one is already installed): [linux_utils/debian_apt/apps_installations/install_pgadmin.sh](linux_utils/debian_apt/apps_installations/install_pgadmin.sh)
   - Signal Desktop (official Signal APT repository; amd64 only): [linux_utils/debian_apt/apps_installations/install_signal.sh](linux_utils/debian_apt/apps_installations/install_signal.sh)
   - Wireshark (apt package): [linux_utils/debian_apt/apps_installations/install_wireshark.sh](linux_utils/debian_apt/apps_installations/install_wireshark.sh)
+  - Raspberry Pi Imager (apt package `rpi-imager`): [linux_utils/debian_apt/apps_installations/install_rpi_imager.sh](linux_utils/debian_apt/apps_installations/install_rpi_imager.sh)
   - KVM + virt-manager (qemu, libvirt, OVMF; adds you to `libvirt`/`kvm` groups, re-login needed): [linux_utils/debian_apt/apps_installations/install_virt_manager.sh](linux_utils/debian_apt/apps_installations/install_virt_manager.sh)
 
 ### Manual usage
