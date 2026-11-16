@@ -7,8 +7,9 @@ umask 022
 #
 # What it does:
 # - With --system: installs apt prerequisites, mise (signed APT repo), Podman, and terminal helpers
-# - Installs global toolchains with mise: Node.js LTS, pnpm, Go, Rust (stable), Bun, uv, sqlite3def
+# - Installs global toolchains with mise: Node.js LTS, pnpm, Go, Rust (stable), Bun, uv, sqlite3def, coursier
 #   (Python versions are managed by uv; per-project versions go in each repo's mise.toml)
+# - Installs Scala tooling (scala, sbt, metals, ...) with Coursier (cs, via mise)
 # - Installs Playwright globally via npm and downloads browser binaries
 # - Adds mise activation/shims and PATH entries idempotently to shell profiles
 # - Sets the default GNOME Terminal profile to 8% transparency when available
@@ -43,6 +44,8 @@ source "$TECH_DIR/install_top.sh"
 source "$TECH_DIR/install_podman.sh"
 # shellcheck source=technologies/configure_mise_tools.sh
 source "$TECH_DIR/configure_mise_tools.sh"
+# shellcheck source=technologies/install_scala.sh
+source "$TECH_DIR/install_scala.sh"
 # shellcheck source=technologies/install_playwright.sh
 source "$TECH_DIR/install_playwright.sh"
 # shellcheck source=technologies/configure_bash_prompt.sh
@@ -113,6 +116,8 @@ else
 fi
 section "Installing global toolchains with mise"
 configure_mise_tools
+section "Installing Scala"
+install_scala
 section "Installing Playwright"
 install_playwright
 section "Configuring shell prompt"

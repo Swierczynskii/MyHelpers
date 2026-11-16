@@ -13,6 +13,7 @@ umask 022
 #   --claude       Claude Code CLI
 #   --mise         mise-managed tools (mise upgrade: Node.js, pnpm, Go, Bun, uv, sqlite3def, ...)
 #   --rust         Rust stable toolchain (rustup update)
+#   --scala        Scala apps installed with Coursier (cs update: scala, sbt, metals, ...)
 #   -h, --help     Show usage and exit
 #
 # Tool upgrades are user-scoped (no sudo) and skip gracefully if the tool
@@ -140,6 +141,7 @@ run_tool_update() {
     claude) update_tool claude 'Claude Code' claude update ;;
     mise) update_tool mise 'mise-managed tools' mise upgrade ;;
     rust) update_tool rustup 'Rust (rustup)' rustup update ;;
+    scala) update_tool cs 'Scala apps (coursier)' cs update ;;
     *)
       err "Unknown tool: $tool"
       return 1
@@ -148,7 +150,7 @@ run_tool_update() {
 }
 
 # Canonical order in which tools run; also the set of valid --<tool> flags.
-ALL_TOOLS=(claude mise rust)
+ALL_TOOLS=(claude mise rust scala)
 AI_TOOLS=(claude)
 
 usage() {
@@ -163,6 +165,7 @@ Flags add tool upgrades AFTER the apt steps:
   --claude       Claude Code CLI
   --mise         mise-managed tools (mise upgrade: Node.js, pnpm, Go, Bun, uv, sqlite3def, ...)
   --rust         Rust stable toolchain (rustup update)
+  --scala        Scala apps installed with Coursier (cs update: scala, sbt, metals, ...)
   -h, --help     Show this help and exit
 EOF
 }

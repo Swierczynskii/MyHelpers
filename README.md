@@ -21,7 +21,8 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
 1) Bootstraps developer toolchains via [linux_utils/toolchains/bootstrap_toolchains.sh](linux_utils/toolchains/bootstrap_toolchains.sh)
    - Each step is a separate script under [linux_utils/toolchains/technologies](linux_utils/toolchains/technologies) (e.g. `install_mise.sh`, `configure_mise_tools.sh`), sourced by the bootstrap and also runnable on its own: `bash linux_utils/toolchains/technologies/configure_mise_tools.sh`; shared helpers live in `common.sh`
    - mise (installed first, from its signed APT repository with a pinned key fingerprint; `mise activate` is added to `~/.bashrc` and `~/.zshrc` unless an activation already exists)
-   - Global toolchains via mise (`mise use --global`, recorded in `~/.config/mise/config.toml`): Node.js LTS (follows each new LTS line automatically), pnpm, Go, Rust stable (through rustup), Bun, uv, sqlite3def (sqldef, MIT: declarative SQLite schema from plain SQL files incl. views and triggers: `sqlite3def app.db --dry-run < schema.sql`, then `--apply`)
+   - Global toolchains via mise (`mise use --global`, recorded in `~/.config/mise/config.toml`): Node.js LTS (follows each new LTS line automatically), pnpm, Go, Rust stable (through rustup), Bun, uv, coursier (`cs`), sqlite3def (sqldef, MIT: declarative SQLite schema from plain SQL files incl. views and triggers: `sqlite3def app.db --dry-run < schema.sql`, then `--apply`)
+   - Scala via Coursier (`install_scala.sh`): `scala`, `scalac`, `sbt`, `scalafmt`, `metals` installed with `cs install` into `~/.local/share/coursier/bin` (added to PATH); Coursier fetches its own JVM, so no system Java is needed. Add more with `cs install <app>`
    - mise shims are added to `~/.profile` (and an existing `~/.bash_profile`) so non-interactive shells, scripts, and GUI apps find the tools too
    - Python is not managed by mise: use uv (`uv python install`, `.python-version`, `pyproject.toml`)
    - Per-project versions: run `mise use <tool>@<version>` inside a repo to write its own `mise.toml`, which overrides the global defaults there (mise asks you to `mise trust` it once). `.nvmrc`/`.node-version` are read only after `mise settings add idiomatic_version_file_enable_tools node`
@@ -40,7 +41,7 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
 3) Copies upgrade helpers to `$HOME` (idempotent)
    - Source file:
      - Debian/Ubuntu: [linux_utils/debian_apt/upgrade.sh](linux_utils/debian_apt/upgrade.sh)
-   - `~/upgrade.sh` runs the apt steps (which also update mise itself); add `--mise` for `mise upgrade` (Node.js, pnpm, Go, Bun, uv, sqlite3def), `--rust` for `rustup update`, `--claude` for Claude Code, or `--all` for everything; it also re-points the pgAdmin APT repo to the current Ubuntu codename after a release upgrade
+   - `~/upgrade.sh` runs the apt steps (which also update mise itself); add `--mise` for `mise upgrade` (Node.js, pnpm, Go, Bun, uv, sqlite3def), `--rust` for `rustup update`, `--scala` for `cs update` (Coursier apps: scala, sbt, metals, ...), `--claude` for Claude Code, or `--all` for everything; it also re-points the pgAdmin APT repo to the current Ubuntu codename after a release upgrade
 
 3a) Ensures system monitor helper is available
    - Installs lm-sensors if missing
@@ -91,6 +92,7 @@ You can run any installer directly if you don’t want the full bundle.
   - Signal Desktop (official Signal APT repository; amd64 only): [linux_utils/debian_apt/apps_installations/install_signal.sh](linux_utils/debian_apt/apps_installations/install_signal.sh)
   - Wireshark (apt package): [linux_utils/debian_apt/apps_installations/install_wireshark.sh](linux_utils/debian_apt/apps_installations/install_wireshark.sh)
   - Raspberry Pi Imager (apt package `rpi-imager`): [linux_utils/debian_apt/apps_installations/install_rpi_imager.sh](linux_utils/debian_apt/apps_installations/install_rpi_imager.sh)
+  - Syncthing (official `apt.syncthing.net` `stable-v2` repo; backs up `~/.local/state/syncthing` to `~/syncthing-backup` before upgrading; enables the `syncthing@$USER` systemd service, web UI on `127.0.0.1:8384`): [linux_utils/debian_apt/apps_installations/install_syncthing.sh](linux_utils/debian_apt/apps_installations/install_syncthing.sh)
   - KVM + virt-manager (qemu, libvirt, OVMF; adds you to `libvirt`/`kvm` groups, re-login needed): [linux_utils/debian_apt/apps_installations/install_virt_manager.sh](linux_utils/debian_apt/apps_installations/install_virt_manager.sh)
 
 ### Manual usage
@@ -99,7 +101,7 @@ You can run any installer directly if you don’t want the full bundle.
   - Add `-s` (or `--system`) to install apt prerequisites, mise, Podman, terminal helpers, and Playwright system dependencies
   - Without `--system`, mise must already be installed
   - Change global versions with `mise use --global node@<major>` (etc.); list them with `mise ls --global`
-  - Optional: verify installed toolchains with `mise doctor`, `node -v`, `pnpm -v`, `bun --version`, `rustc --version`, `go version`, `uv --version`, `sqlite3def --version`, `playwright --version`, and `podman --version`
+  - Optional: verify installed toolchains with `mise doctor`, `node -v`, `pnpm -v`, `bun --version`, `rustc --version`, `go version`, `uv --version`, `cs --version`, `scala --version`, `sqlite3def --version`, `playwright --version`, and `podman --version`
 - Run only the Claude Code installer:
   - `bash linux_utils/toolchains/install_claude.sh`
 - Run the Podman cleanup helper directly:
@@ -107,6 +109,8 @@ You can run any installer directly if you don’t want the full bundle.
   - `./linux_utils/podman_cleanup.sh -s` (or `--select`) to open an `fzf` selector and mark any containers/images to remove, including running containers or tagged images
   - `DRY_RUN=1 ./linux_utils/podman_cleanup.sh` to preview safe cleanup without deleting anything
   - `AUTO_APPROVE=1 ./linux_utils/podman_cleanup.sh` for non-interactive safe cleanup
+- Export LibreWolf bookmarks to `~/Sync/librewolf_bookmarks.html` (importable via LibreWolf: Bookmarks > Manage > Import and Backup > Import from HTML):
+  - `./linux_utils/librewolf_bookmarks_export.sh [profile_dir]` (needs `sqlite3`; auto-detects the profile if omitted)
 - Run system app installers through setup:
   - `./linux_utils/setup.sh`
 - Run an individual app installer directly:
