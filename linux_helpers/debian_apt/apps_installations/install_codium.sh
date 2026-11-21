@@ -130,8 +130,11 @@ if [[ -f "$KEYRING" ]]; then
   log "Using existing keyring: $KEYRING"
 else
   log "Downloading VSCodium key and writing to $KEYRING"
-  curl -fsSL "$KEY_URL" | gpg --dearmor | sudo tee "$KEYRING" >/dev/null
-  sudo chmod 0644 "$KEYRING"
+  # Dearmor to a temp file first; a failed download never leaves a partial keyring behind.
+  TMP_KEY="$(mktemp)"
+  trap 'rm -f "$TMP_KEY"' EXIT
+  curl -fsSL "$KEY_URL" | gpg --dearmor > "$TMP_KEY"
+  sudo install -m 0644 "$TMP_KEY" "$KEYRING"
 fi
 
 log "Cleaning duplicate VSCodium APT sources..."

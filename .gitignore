@@ -1,5 +1,2 @@
 # Generated logs
-/logs/*.log
-
-# Local wallpaper assets
-/linux_utils/wallpaper/*
+/logs/*.log 

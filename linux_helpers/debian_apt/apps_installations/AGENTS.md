@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Additional instructions for agents working under `linux_utils/debian_apt/apps_installations/`.
+Additional instructions for agents working under `linux_helpers/debian_apt/apps_installations/`.
 
 ## Scope
 - This file applies only to files in this directory tree.

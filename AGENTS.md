@@ -6,9 +6,9 @@ Instructions for agents working in this repository.
 - This file applies to the entire repository unless a deeper `AGENTS.md` overrides it.
 
 ## Repository Layout
-- `linux_utils/` contains Linux shell helpers and setup flows.
-- `linux_utils/debian_apt/apps_installations/` contains Debian/Ubuntu app installer scripts.
-- `linux_utils/toolchains/` contains developer toolchain bootstrap scripts; `technologies/` holds one script per step (sourced by `bootstrap_toolchains.sh`, shared helpers in `common.sh`), and language toolchains are managed through mise (`configure_mise_tools.sh`).
+- `linux_helpers/` contains Linux shell helpers and setup flows.
+- `linux_helpers/debian_apt/apps_installations/` contains Debian/Ubuntu app installer scripts.
+- `linux_helpers/toolchains/` contains developer toolchain bootstrap scripts; `technologies/` holds one script per step (sourced by `bootstrap_toolchains.sh`, shared helpers in `common.sh`), and language toolchains are managed through mise (`configure_mise_tools.sh`).
 - `README.md` documents end-user behavior and should stay aligned with user-facing changes.
 
 ## Shell Script Conventions
@@ -23,7 +23,7 @@ Instructions for agents working in this repository.
 - Installers should detect existing installations and skip work when possible.
 - If behavior is interactive, keep a safe default and make non-interactive behavior deterministic.
 - Do not silently broaden the scope of destructive actions.
-- When copying helpers into `$HOME` from `linux_utils/setup.sh`, follow the existing pattern used for `monitor.sh`, `upgrade.sh`, and `podman_cleanup.sh`.
+- When copying helpers into `$HOME` from `linux_helpers/setup.sh`, follow the existing pattern used for `monitor.sh`, `upgrade.sh`, and `podman_cleanup.sh`.
 - Do not change executable permissions broadly; preserve existing repo behavior unless the user explicitly requests a permission change.
 
 ## Documentation

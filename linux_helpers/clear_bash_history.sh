@@ -3,7 +3,7 @@
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then set -euo pipefail; fi
 umask 022
 # -----------------------------------------------------------------------------
-# linux_utils/clear_bash_history.sh
+# linux_helpers/clear_bash_history.sh
 # Clears bash history leftovers. Does nothing without an option.
 # -----------------------------------------------------------------------------
 

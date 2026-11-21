@@ -90,50 +90,49 @@ title() {
 }
 
 if [[ "${SKIP_INSTALLER_TITLE:-0}" != "1" ]]; then
-  title "Installing KVM + Virtual Machine Manager"
+  title "Installing Syncthing"
 fi
 
-if ! command -v apt >/dev/null 2>&1; then
-  err "apt not found. This script supports Debian/Ubuntu-based systems."
+if ! command -v apt-get >/dev/null 2>&1; then
+  err "apt-get not found. This script supports Debian/Ubuntu-based systems."
   exit 1
 fi
 
-if ! grep -qE '(vmx|svm)' /proc/cpuinfo; then
-  err "CPU virtualization (VT-x/AMD-V) not available. Enable it in BIOS/UEFI (or the hypervisor) and re-run."
-  exit 1
+KEYRING=/etc/apt/keyrings/syncthing-archive-keyring.gpg
+LIST=/etc/apt/sources.list.d/syncthing.list
+
+log "Checking if Syncthing official repo is configured..."
+if [[ -f "$LIST" && -f "$KEYRING" ]] && dpkg -s syncthing >/dev/null 2>&1; then
+  log "syncthing installed from apt.syncthing.net. Skipping."
+  exit 0
 fi
 
-PACKAGES=(qemu-system-x86 libvirt-daemon-system libvirt-clients virt-manager ovmf)
-MISSING=()
-for pkg in "${PACKAGES[@]}"; do
-  dpkg -s "$pkg" >/dev/null 2>&1 || MISSING+=("$pkg")
-done
-
-if (( ${#MISSING[@]} )); then
-  log "Installing: ${MISSING[*]}"
-  sudo apt-get update
-  sudo apt-get install -y "${MISSING[@]}"
-else
-  log "KVM/libvirt/virt-manager packages already installed."
+# v1 -> v2 migrates the database; back up state once before upgrading.
+STATE="$HOME/.local/state/syncthing"
+BACKUP="$HOME/syncthing-backup"
+if [[ -d "$STATE" && ! -e "$BACKUP" ]]; then
+  log "Backing up $STATE to $BACKUP..."
+  sudo systemctl stop "syncthing@${USER}.service" 2>/dev/null || true
+  cp -a "$STATE" "$BACKUP"
 fi
 
-log "Enabling libvirt daemon..."
-sudo systemctl enable --now libvirtd || log "Could not enable libvirtd (socket-activated setups can ignore this)."
+log "Adding official Syncthing apt repo (stable-v2)..."
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo mkdir -p /etc/apt/keyrings
+# Download to a temp file first; a failed download never leaves a partial keyring behind.
+TMP_KEY="$(mktemp)"
+trap 'rm -f "$TMP_KEY"' EXIT
+curl -fsSL -o "$TMP_KEY" https://syncthing.net/release-key.gpg
+sudo install -m 0644 "$TMP_KEY" "$KEYRING"
+echo "deb [signed-by=$KEYRING] https://apt.syncthing.net/ syncthing stable-v2" | sudo tee "$LIST" >/dev/null
 
-# Add the invoking user (not root) to the libvirt/kvm groups
-TARGET_USER="${SUDO_USER:-$USER}"
-if [[ "$TARGET_USER" != "root" ]]; then
-  for grp in libvirt kvm; do
-    if getent group "$grp" >/dev/null && ! id -nG "$TARGET_USER" | tr ' ' '\n' | grep -qx "$grp"; then
-      log "Adding $TARGET_USER to group $grp..."
-      sudo usermod -aG "$grp" "$TARGET_USER"
-      NEED_RELOGIN=1
-    fi
-  done
-fi
+log "Installing/upgrading syncthing..."
+sudo apt-get update
+sudo apt-get install -y syncthing
 
-log "KVM + virt-manager installation complete."
-log "Launch: virt-manager"
-if [[ "${NEED_RELOGIN:-0}" == "1" ]]; then
-  log "Log out and back in (or run 'newgrp libvirt') for group membership to apply."
-fi
+log "Enabling syncthing@${USER} service..."
+sudo systemctl enable --now "syncthing@${USER}.service"
+
+log "Syncthing installation complete: $(syncthing --version | head -n1)"
+log "Web UI: http://127.0.0.1:8384 (remote: ssh -L 8384:127.0.0.1:8384 ${USER}@<pi-host>)"

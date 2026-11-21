@@ -2,7 +2,7 @@
 set -euo pipefail
 umask 022
 # -----------------------------------------------------------------------------
-# linux_utils/setup.sh
+# linux_helpers/setup.sh
 # Orchestrated Linux setup for a single user on Debian/Ubuntu.
 # - Installs mise and the global toolchains it manages (Node.js LTS, pnpm, Go, Rust, Bun, uv, sqlite3def), plus Playwright
 # - Installs Claude Code
@@ -131,7 +131,7 @@ require_cmd() {
 
 usage() {
   cat <<'EOF'
-Usage: ./linux_utils/setup.sh [-h|--help]
+Usage: ./linux_helpers/setup.sh [-h|--help]
 
 Options:
   -h, --help  Show this help message
@@ -308,7 +308,7 @@ fi
 
 # 1a) Install Claude Code after Node/npm toolchains are available
 section "Installing Claude Code"
-AI_INSTALLER="$REPO_ROOT/linux_utils/toolchains/install_claude.sh"
+AI_INSTALLER="$REPO_ROOT/linux_helpers/toolchains/install_claude.sh"
 if [[ -f "$AI_INSTALLER" ]]; then
   log "Installing Claude Code via $AI_INSTALLER"
   bash "$AI_INSTALLER"

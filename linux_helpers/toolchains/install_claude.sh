@@ -14,7 +14,7 @@ error() { echo -e "${RED}[x]${NC} $1" >&2; }
 case "${1:-}" in
   "") ;;
   -h|--help)
-    echo "Usage: bash linux_utils/toolchains/install_claude.sh"
+    echo "Usage: bash linux_helpers/toolchains/install_claude.sh"
     echo "Installs Claude Code with Anthropic's native installer (skips if present)."
     exit 0
     ;;

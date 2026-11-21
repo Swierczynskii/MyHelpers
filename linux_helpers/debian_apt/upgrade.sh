@@ -2,7 +2,7 @@
 set -euo pipefail
 umask 022
 # -----------------------------------------------------------------------------
-# linux_utils/debian_apt/upgrade.sh
+# linux_helpers/debian_apt/upgrade.sh
 # Non-interactive APT upgrade helper for Debian/Ubuntu.
 #
 # Default (no flags): apt-get update, upgrade -y, autoremove -y.

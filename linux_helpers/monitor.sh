@@ -2,13 +2,10 @@
 set -euo pipefail
 umask 022
 # -----------------------------------------------------------------------------
-# linux_utils/debian_apt/apps_installations/install_keepassxc.sh
-# Install KeePassXC via apt-get (distro repositories)
-# Prerequisites: sudo, apt-get, network access
-# Usage: ./install_keepassxc.sh
-# Non-interactive: export DEBIAN_FRONTEND=noninteractive
+# linux_helpers/monitor.sh
+# Tmux-based system monitor: side-by-side 'top' and 'watch -n <interval> -d sensors'.
+# Accepts fractional INTERVAL values such as 0.5 or .5.
 # -----------------------------------------------------------------------------
-export DEBIAN_FRONTEND=noninteractive
 
 COLOR_ENABLED=0
 if [[ "${FORCE_COLOR:-0}" == "1" || -t 1 ]]; then
@@ -75,8 +72,7 @@ print_box() {
 }
 
 timestamp() {
-  local ts
-  ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
+  local ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
   if (( COLOR_ENABLED )); then
     printf '%b%s%b' "$TIMESTAMP_COLOR" "$ts" "$NC"
   else
@@ -88,6 +84,10 @@ log() {
   printf '%s %s\n' "$(timestamp)" "$*"
 }
 
+warn() {
+  print_box "WARNING\n$*" "$TITLE_COLOR"
+}
+
 err() {
   print_box "ERROR\n$*" "$ERROR_COLOR" >&2
 }
@@ -96,30 +96,48 @@ title() {
   print_box "$*" "$TITLE_COLOR"
 }
 
-if [[ "${SKIP_INSTALLER_TITLE:-0}" != "1" ]]; then
-  title "Installing KeePassXC"
+have() { command -v "$1" >/dev/null 2>&1; }
+
+if ! have tmux; then
+  err "'tmux' not found. Run the toolchain bootstrap or install tmux."
+  exit 1
 fi
-
-# KeePassXC installation via apt (from official distro repositories)
-
-# Ensure apt is available
-if ! command -v apt >/dev/null 2>&1; then
-  err "apt not found. This script supports Debian/Ubuntu-based systems."
+if ! have sensors; then
+  err "'sensors' not found. Install 'lm-sensors' (apt: sudo apt install lm-sensors)."
+  exit 1
+fi
+if ! have watch; then
+  err "'watch' not found. Install 'procps' (apt: sudo apt install procps)."
+  exit 1
+fi
+if ! have top; then
+  err "'top' not found. Install 'procps' (apt: sudo apt install procps)."
   exit 1
 fi
 
-# Skip if already installed
-log "Checking if KeePassXC is already installed..."
-if dpkg -s keepassxc >/dev/null 2>&1 || command -v keepassxc >/dev/null 2>&1; then
-  log "keepassxc already installed. Skipping."
-  exit 0
+INTERVAL="${INTERVAL:-1}"
+if [[ ! "$INTERVAL" =~ ^([0-9]+([.][0-9]+)?|[.][0-9]+)$ ]]; then
+  warn "Invalid INTERVAL '$INTERVAL'; defaulting to 1"
+  INTERVAL='1'
 fi
 
-log "Updating package lists..."
-sudo apt-get update
-
-log "Installing KeePassXC..."
-sudo apt-get install -y keepassxc
-
-log "KeePassXC installation complete."
-log "Launch: keepassxc"
+if [[ -n "${TMUX:-}" ]]; then
+  title "Refreshing tmux monitor window"
+  if tmux list-windows -F '#{window_name}' | grep -qx 'monitor'; then
+    tmux kill-window -t :monitor || true
+  fi
+  tmux new-window -n monitor 'top'
+  tmux split-window -h -t :monitor "watch -n ${INTERVAL} -d sensors"
+  tmux select-layout -t :monitor even-horizontal
+  tmux select-window -t :monitor
+else
+  title "Starting tmux monitor session"
+  if tmux has-session -t monitor 2>/dev/null; then
+    tmux attach -t monitor
+  else
+    tmux new-session -d -s monitor -n monitor 'top'
+    tmux split-window -h -t monitor:monitor "watch -n ${INTERVAL} -d sensors"
+    tmux select-layout -t monitor:monitor even-horizontal
+    tmux attach -t monitor
+  fi
+fi

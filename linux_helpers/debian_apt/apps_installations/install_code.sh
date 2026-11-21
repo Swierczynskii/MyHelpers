@@ -136,8 +136,11 @@ elif [[ -f "$KEYRING_MS_ETC" ]]; then
   log "Using existing keyring: $KEYRING"
 else
   log "Downloading Microsoft key and writing to $KEYRING_VSCODE_USR"
-  wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee "$KEYRING_VSCODE_USR" >/dev/null
-  sudo chmod 0644 "$KEYRING_VSCODE_USR"
+  # Dearmor to a temp file first; a failed download never leaves a partial keyring behind.
+  TMP_KEY="$(mktemp)"
+  trap 'rm -f "$TMP_KEY"' EXIT
+  wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > "$TMP_KEY"
+  sudo install -m 0644 "$TMP_KEY" "$KEYRING_VSCODE_USR"
   KEYRING="$KEYRING_VSCODE_USR"
 fi
 

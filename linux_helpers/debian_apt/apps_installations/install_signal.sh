@@ -2,7 +2,7 @@
 set -euo pipefail
 umask 022
 # -----------------------------------------------------------------------------
-# linux_utils/debian_apt/apps_installations/install_signal.sh
+# linux_helpers/debian_apt/apps_installations/install_signal.sh
 # Install Signal Desktop via the official Signal APT repository.
 # Prerequisites: sudo, apt-get, gpg, curl or wget, network access
 # Usage: ./install_signal.sh
@@ -107,8 +107,8 @@ fi
 
 ARCH="$(dpkg --print-architecture)"
 if [[ "$ARCH" != "amd64" ]]; then
-  err "Signal Desktop APT installation currently supports amd64 Debian/Ubuntu systems only. Detected architecture: $ARCH"
-  exit 1
+  log "Signal Desktop APT packages are amd64-only (detected: $ARCH); skipping."
+  exit 0
 fi
 
 log "Checking if Signal Desktop is already installed..."

@@ -43,6 +43,8 @@ awk -F'\t' '
   $1 != cur { if (open) print "    </DL><p>"; cur = $1; open = 1; print "    <DT><H3>" (cur == "" ? "Imported" : cur) "</H3>\n    <DL><p>" }
   { print "        <DT><A HREF=\"" $3 "\">" $2 "</A>"; n++ }
   END { if (open) print "    </DL><p>"; print "</DL><p>" }
-' > "$OUT"
+' > "$TMP/bookmarks.html"
+# Replace the synced file only after a successful export.
+mv -f "$TMP/bookmarks.html" "$OUT"
 
 echo "Exported $(grep -c '<A HREF' "$OUT") bookmarks -> $OUT"

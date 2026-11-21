@@ -2,9 +2,9 @@
 set -euo pipefail
 umask 022
 # -----------------------------------------------------------------------------
-# linux_utils/macos_quit_shortcut.sh
+# linux_helpers/macos_quit_shortcut.sh
 # Configure GNOME's close-window shortcut with a macOS-like Super+Q binding.
-# This script is invoked by linux_utils/setup.sh and is safe to re-run.
+# This script is invoked by linux_helpers/setup.sh and is safe to re-run.
 # -----------------------------------------------------------------------------
 
 SCHEMA='org.gnome.desktop.wm.keybindings'

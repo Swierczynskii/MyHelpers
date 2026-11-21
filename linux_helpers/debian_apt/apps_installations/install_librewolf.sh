@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 umask 022
-# -----------------------------------------------------------------------------
-# linux_utils/monitor.sh
-# Tmux-based system monitor: side-by-side 'top' and 'watch -n <interval> -d sensors'.
-# Accepts fractional INTERVAL values such as 0.5 or .5.
-# -----------------------------------------------------------------------------
+export DEBIAN_FRONTEND=noninteractive
 
 COLOR_ENABLED=0
 if [[ "${FORCE_COLOR:-0}" == "1" || -t 1 ]]; then
@@ -72,7 +68,8 @@ print_box() {
 }
 
 timestamp() {
-  local ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
+  local ts
+  ts="[$(date '+%Y-%m-%d %H:%M:%S')]"
   if (( COLOR_ENABLED )); then
     printf '%b%s%b' "$TIMESTAMP_COLOR" "$ts" "$NC"
   else
@@ -84,10 +81,6 @@ log() {
   printf '%s %s\n' "$(timestamp)" "$*"
 }
 
-warn() {
-  print_box "WARNING\n$*" "$TITLE_COLOR"
-}
-
 err() {
   print_box "ERROR\n$*" "$ERROR_COLOR" >&2
 }
@@ -96,48 +89,45 @@ title() {
   print_box "$*" "$TITLE_COLOR"
 }
 
-have() { command -v "$1" >/dev/null 2>&1; }
+if [[ "${SKIP_INSTALLER_TITLE:-0}" != "1" ]]; then
+  title "Installing LibreWolf"
+fi
 
-if ! have tmux; then
-  err "'tmux' not found. Run the toolchain bootstrap or install tmux."
-  exit 1
-fi
-if ! have sensors; then
-  err "'sensors' not found. Install 'lm-sensors' (apt: sudo apt install lm-sensors)."
-  exit 1
-fi
-if ! have watch; then
-  err "'watch' not found. Install 'procps' (apt: sudo apt install procps)."
-  exit 1
-fi
-if ! have top; then
-  err "'top' not found. Install 'procps' (apt: sudo apt install procps)."
+if ! command -v apt >/dev/null 2>&1; then
+  err "apt not found. This script supports Debian/Ubuntu-based systems."
   exit 1
 fi
 
-INTERVAL="${INTERVAL:-1}"
-if [[ ! "$INTERVAL" =~ ^([0-9]+([.][0-9]+)?|[.][0-9]+)$ ]]; then
-  warn "Invalid INTERVAL '$INTERVAL'; defaulting to 1"
-  INTERVAL='1'
-fi
-
-if [[ -n "${TMUX:-}" ]]; then
-  title "Refreshing tmux monitor window"
-  if tmux list-windows -F '#{window_name}' | grep -qx 'monitor'; then
-    tmux kill-window -t :monitor || true
-  fi
-  tmux new-window -n monitor 'top'
-  tmux split-window -h -t :monitor "watch -n ${INTERVAL} -d sensors"
-  tmux select-layout -t :monitor even-horizontal
-  tmux select-window -t :monitor
-else
-  title "Starting tmux monitor session"
-  if tmux has-session -t monitor 2>/dev/null; then
-    tmux attach -t monitor
+# Remove the Snap build of Firefox (explicitly requested; LibreWolf replaces it).
+# Only called once LibreWolf is installed; no --purge, so snap keeps an automatic snapshot of its data.
+remove_snap_firefox() {
+  if command -v snap >/dev/null 2>&1 && snap list firefox >/dev/null 2>&1; then
+    log "Removing Snap Firefox (data kept in a snap snapshot: 'snap saved', 'snap restore <id>')..."
+    sudo snap remove firefox
   else
-    tmux new-session -d -s monitor -n monitor 'top'
-    tmux split-window -h -t monitor:monitor "watch -n ${INTERVAL} -d sensors"
-    tmux select-layout -t monitor:monitor even-horizontal
-    tmux attach -t monitor
+    log "Snap Firefox not present."
   fi
+}
+
+log "Checking if LibreWolf is already installed..."
+if dpkg -s librewolf >/dev/null 2>&1 || command -v librewolf >/dev/null 2>&1; then
+  log "librewolf already installed. Skipping."
+  remove_snap_firefox
+  exit 0
 fi
+
+log "Installing extrepo (manages the signed LibreWolf APT repo)..."
+sudo apt-get update
+sudo apt-get install -y extrepo
+
+log "Enabling LibreWolf repository..."
+sudo extrepo enable librewolf
+
+log "Installing librewolf..."
+sudo apt-get update
+sudo apt-get install -y librewolf
+
+remove_snap_firefox
+
+log "LibreWolf installation complete."
+log "Launch: librewolf"

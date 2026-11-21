@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 umask 022
-# -----------------------------------------------------------------------------
-# linux_utils/debian_apt/apps_installations/install_brave.sh
-# Install Brave Browser via official Brave APT repository (keyrings + signed-by)
-# Prerequisites: sudo, apt-get, curl or wget, network access
-# Usage: ./install_brave.sh
-# Non-interactive: export DEBIAN_FRONTEND=noninteractive
-# -----------------------------------------------------------------------------
 export DEBIAN_FRONTEND=noninteractive
 
 COLOR_ENABLED=0
@@ -97,19 +90,24 @@ title() {
 }
 
 if [[ "${SKIP_INSTALLER_TITLE:-0}" != "1" ]]; then
-  title "Installing Brave Browser"
+  title "Installing Google Chrome"
 fi
 
-# Ensure apt is available
 if ! command -v apt >/dev/null 2>&1; then
   err "apt not found. This script supports Debian/Ubuntu-based systems."
   exit 1
 fi
 
-# Skip if already installed
-log "Checking if Brave Browser is already installed..."
-if dpkg -s brave-browser >/dev/null 2>&1 || command -v brave-browser >/dev/null 2>&1; then
-  log "brave-browser already installed. Skipping."
+log "Checking if Google Chrome is already installed..."
+if dpkg -s google-chrome-stable >/dev/null 2>&1 || command -v google-chrome >/dev/null 2>&1 || command -v google-chrome-stable >/dev/null 2>&1; then
+  log "google-chrome-stable already installed. Skipping."
+  exit 0
+fi
+
+ARCH="$(dpkg --print-architecture)"
+# ponytail: amd64-only like Google's Linux repo has been; widen if Google ships arm64 debs.
+if [[ "$ARCH" != "amd64" ]]; then
+  log "Google Chrome APT packages are amd64-only (detected: $ARCH); skipping."
   exit 0
 fi
 
@@ -119,56 +117,54 @@ if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
   sudo apt-get update
   sudo apt-get install -y wget
 fi
+if ! command -v gpg >/dev/null 2>&1; then
+  log "Installing gpg..."
+  sudo apt-get update
+  sudo apt-get install -y gpg
+fi
 
-log "Preparing keyrings directory..."
 sudo install -d -m 0755 /etc/apt/keyrings
 
-ARCH=$(dpkg --print-architecture)
-BRAVE_URL="https://brave-browser-apt-release.s3.brave.com/"
-KEYRING_DEFAULT="/etc/apt/keyrings/brave-browser-archive-keyring.gpg"
-KEYRING_LEGACY="/usr/share/keyrings/brave-browser-archive-keyring.gpg"
-LIST="/etc/apt/sources.list.d/brave-browser-release.list"
+KEY_URL="https://dl.google.com/linux/linux_signing_key.pub"
+KEYRING_DEFAULT="/etc/apt/keyrings/google-linux-signing-keyring.gpg"
+KEYRING_LEGACY="/usr/share/keyrings/google-chrome.gpg"
+LIST="/etc/apt/sources.list.d/google-chrome.list"
 
-download_to() {
-  local url="$1" dest="$2"
+download_key() {
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url" -o "$dest"
+    curl -fsSL "$KEY_URL"
   else
-    wget -qO "$dest" "$url"
+    wget -qO- "$KEY_URL"
   fi
 }
 
-log "Ensuring Brave signing key..."
+log "Ensuring Google signing key..."
 if [[ -f "$KEYRING_DEFAULT" ]]; then
   KEYRING="$KEYRING_DEFAULT"
-  log "Using existing keyring: $KEYRING"
 elif [[ -f "$KEYRING_LEGACY" ]]; then
   KEYRING="$KEYRING_LEGACY"
-  log "Using legacy keyring: $KEYRING"
 else
-  log "Downloading keyring to $KEYRING_DEFAULT"
-  # Download as the user, then install; a failed download never leaves a partial keyring behind.
+  # Dearmor to a temp file first; a failed download never leaves a partial keyring behind.
   TMP_KEY="$(mktemp)"
   trap 'rm -f "$TMP_KEY"' EXIT
-  download_to "${BRAVE_URL}brave-browser-archive-keyring.gpg" "$TMP_KEY"
+  download_key | gpg --dearmor > "$TMP_KEY"
   sudo install -m 0644 "$TMP_KEY" "$KEYRING_DEFAULT"
   KEYRING="$KEYRING_DEFAULT"
 fi
 
-log "Cleaning duplicate Brave APT sources..."
-sudo sed -i -E '/brave-browser-apt-release\.s3\.brave\.com/d' /etc/apt/sources.list || true
-# Remove any .list or .sources files referencing Brave to avoid duplicate entries with different Signed-By
-sudo bash -lc 'for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do [ -e "$f" ] || continue; if grep -qs "brave-browser-apt-release\.s3\.brave\.com" "$f"; then rm -f "$f"; fi; done'
+log "Cleaning duplicate Google Chrome APT sources..."
+sudo sed -i -E '/dl\.google\.com\/linux\/chrome\/deb/d' /etc/apt/sources.list || true
+sudo bash -lc 'for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do [ -e "$f" ] || continue; if grep -qs "dl\.google\.com/linux/chrome/deb" "$f"; then rm -f "$f"; fi; done'
 
-log "Adding Brave APT repository..."
-echo "deb [arch=$ARCH signed-by=$KEYRING] ${BRAVE_URL} stable main" | sudo tee "$LIST" >/dev/null
+log "Adding Google Chrome APT repository..."
+echo "deb [arch=${ARCH} signed-by=${KEYRING}] https://dl.google.com/linux/chrome/deb/ stable main" | sudo tee "$LIST" >/dev/null
 sudo chmod 0644 "$LIST"
 
 log "Updating package lists..."
 sudo apt-get update
 
-log "Installing brave-browser..."
-sudo apt-get install -y brave-browser
+log "Installing google-chrome-stable..."
+sudo apt-get install -y google-chrome-stable
 
-log "Brave Browser installation complete."
-log "Launch: brave-browser"
+log "Google Chrome installation complete."
+log "Launch: google-chrome-stable"

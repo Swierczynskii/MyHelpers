@@ -2,7 +2,7 @@
 set -euo pipefail
 umask 022
 # -----------------------------------------------------------------------------
-# linux_utils/toolchains/bootstrap_toolchains.sh
+# linux_helpers/toolchains/bootstrap_toolchains.sh
 # Bootstrap developer toolchains for a single user.
 #
 # What it does:
@@ -55,7 +55,7 @@ source "$TECH_DIR/configure_gnome_terminal.sh"
 
 usage() {
   cat <<'EOF'
-Usage: bash linux_utils/toolchains/bootstrap_toolchains.sh [-u|--user] | [-s|--system]
+Usage: bash linux_helpers/toolchains/bootstrap_toolchains.sh [-u|--user] | [-s|--system]
 
 Options:
   -u, --user    Install only mise-managed toolchains and shell config; requires mise (default)

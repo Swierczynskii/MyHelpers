@@ -2,7 +2,7 @@
 set -euo pipefail
 umask 022
 # -----------------------------------------------------------------------------
-# linux_utils/podman_cleanup.sh
+# linux_helpers/podman_cleanup.sh
 # Safe Podman cleanup helper focused on keeping local storage metadata lean.
 #
 # Behavior:
@@ -305,7 +305,7 @@ fzf_select_ids() {
             --prompt "$title> " \
             --header "$header" \
             --bind 'tab:toggle+down,shift-tab:toggle+up,ctrl-a:select-all,ctrl-d:deselect-all' \
-            --bind 'enter:transform:[[ ${FZF_SELECT_COUNT:-0} -gt 0 ]] && echo accept || echo abort' \
+            --bind 'enter:transform:[[ ${FZF_SELECT_COUNT:-0} -gt 0 ]] && echo accept || echo "become(true)"' \
             --preview 'printf "%s\n" {}' \
             --preview-window 'down,3,wrap' \
             --delimiter=$'\t' \
@@ -315,10 +315,10 @@ fzf_select_ids() {
 }
 
 select_targets_tui() {
-    local containers_output images_output
+    local containers_output images_output ids
 
     if ! have fzf; then
-        err "'--select' requires 'fzf'. Run linux_utils/toolchains/bootstrap_toolchains.sh or install it with apt."
+        err "'--select' requires 'fzf'. Run linux_helpers/toolchains/bootstrap_toolchains.sh or install it with apt."
         exit 1
     fi
 
@@ -336,28 +336,31 @@ select_targets_tui() {
         exit 0
     fi
 
+    # Capture first: mapfile < <(...) would hide fzf's exit status (Esc = cancel everything).
     if [[ -n "$containers_output" ]]; then
-        if ! mapfile -t SELECTED_CONTAINERS < <(fzf_select_ids \
+        if ! ids="$(fzf_select_ids \
             "containers" \
-            "Tab marks rows, Enter confirms (nothing marked = skip this step). Running containers can be selected here." \
+            "Tab marks rows, Enter confirms (nothing marked = skip this step), Esc cancels. Running containers can be selected here." \
             "$containers_output" \
-            "container"); then
+            "container")"; then
             print_header "Selection cancelled" "$YELLOW"
             echo "Nothing was deleted."
             exit 0
         fi
+        [[ -z "$ids" ]] || mapfile -t SELECTED_CONTAINERS <<< "$ids"
     fi
 
     if [[ -n "$images_output" ]]; then
-        if ! mapfile -t SELECTED_IMAGES < <(fzf_select_ids \
+        if ! ids="$(fzf_select_ids \
             "images" \
-            "Tab marks rows, Enter confirms (nothing marked = skip this step). Tagged and <none>:<none> images can be selected here." \
+            "Tab marks rows, Enter confirms (nothing marked = skip this step), Esc cancels. Tagged and <none>:<none> images can be selected here." \
             "$images_output" \
-            "image"); then
+            "image")"; then
             print_header "Selection cancelled" "$YELLOW"
             echo "Nothing was deleted."
             exit 0
         fi
+        [[ -z "$ids" ]] || mapfile -t SELECTED_IMAGES <<< "$ids"
     fi
 }
 
@@ -445,7 +448,8 @@ remove_none_images() {
     while IFS=$'\t' read -r image_id repository tag created_since; do
         [[ -n "$image_id" ]] || continue
         echo "[*] Removing <none>:<none> image $image_id ..."
-        if ! podman rmi -f --ignore "$image_id"; then
+        # No -f: it would also remove (even running) containers that use the image.
+        if ! podman rmi --ignore "$image_id"; then
             echo "[!] Could not remove image $image_id; it may still be referenced."
             removal_failed=1
         fi
@@ -495,7 +499,7 @@ remove_selected_images() {
 parse_args "$@"
 
 if ! have podman; then
-    err "'podman' not found. Install it first (see linux_utils/toolchains/bootstrap_toolchains.sh)."
+    err "'podman' not found. Install it first (see linux_helpers/toolchains/bootstrap_toolchains.sh)."
     exit 1
 fi
 

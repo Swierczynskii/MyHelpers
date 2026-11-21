@@ -2,7 +2,7 @@
 set -euo pipefail
 umask 022
 # -----------------------------------------------------------------------------
-# linux_utils/debian_apt/apps_installations/install_pgadmin.sh
+# linux_helpers/debian_apt/apps_installations/install_pgadmin.sh
 # Install pgAdmin 4 via the official pgAdmin APT repository.
 # Supports web, desktop, or both variants and detects existing installs first.
 # Usage: ./install_pgadmin.sh
@@ -114,7 +114,8 @@ pkg_installed() {
 }
 
 is_interactive() {
-  [[ -t 0 && -t 1 ]]
+  # stdin only: setup.sh pipes stdout through tee, so -t 1 is always false there.
+  [[ -t 0 ]]
 }
 
 detect_pgadmin_web() {
@@ -206,8 +207,11 @@ if [[ -f "$PGADMIN_KEYRING" ]]; then
   log "Using existing keyring: $PGADMIN_KEYRING"
 else
   log "Downloading pgAdmin key and writing to $PGADMIN_KEYRING"
-  curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o "$PGADMIN_KEYRING"
-  sudo chmod 0644 "$PGADMIN_KEYRING"
+  # Dearmor to a temp file first; a failed download never leaves a partial keyring behind.
+  TMP_KEY="$(mktemp)"
+  trap 'rm -f "$TMP_KEY"' EXIT
+  curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | gpg --dearmor > "$TMP_KEY"
+  sudo install -m 0644 "$TMP_KEY" "$PGADMIN_KEYRING"
 fi
 
 log "Cleaning duplicate pgAdmin APT sources..."
