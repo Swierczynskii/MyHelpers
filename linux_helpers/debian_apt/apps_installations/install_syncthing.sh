@@ -81,6 +81,11 @@ log() {
   printf '%s %s\n' "$(timestamp)" "$*"
 }
 
+# 'dpkg -s' also succeeds for removed-but-not-purged packages.
+pkg_installed() {
+  [[ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null || true)" == "installed" ]]
+}
+
 err() {
   print_box "ERROR\n$*" "$ERROR_COLOR" >&2
 }
@@ -98,11 +103,16 @@ if ! command -v apt-get >/dev/null 2>&1; then
   exit 1
 fi
 
+if [[ "${EUID:-$(id -u)}" -eq 0 || -n "${SUDO_USER:-}" ]]; then
+  err "Run this script without sudo. It sets up the Syncthing service for your user and calls sudo itself."
+  exit 1
+fi
+
 KEYRING=/etc/apt/keyrings/syncthing-archive-keyring.gpg
 LIST=/etc/apt/sources.list.d/syncthing.list
 
 log "Checking if Syncthing official repo is configured..."
-if [[ -f "$LIST" && -f "$KEYRING" ]] && dpkg -s syncthing >/dev/null 2>&1; then
+if [[ -f "$LIST" && -s "$KEYRING" ]] && pkg_installed syncthing; then
   log "syncthing installed from apt.syncthing.net. Skipping."
   exit 0
 fi

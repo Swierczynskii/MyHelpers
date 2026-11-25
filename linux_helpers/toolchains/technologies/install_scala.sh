@@ -2,7 +2,7 @@
 set -euo pipefail
 umask 022
 # Install the Scala toolchain with Coursier (cs, installed by mise): scala, scalac, sbt, scalafmt, metals.
-# Coursier downloads its own JVM on demand, so no system Java is needed.
+# The launchers need java at runtime; it comes from mise (configure_mise_tools.sh).
 # Usable standalone (bash technologies/install_scala.sh) or sourced by bootstrap_toolchains.sh.
 
 # shellcheck source=common.sh

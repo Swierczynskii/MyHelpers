@@ -4,7 +4,7 @@ umask 022
 # -----------------------------------------------------------------------------
 # linux_helpers/setup.sh
 # Orchestrated Linux setup for a single user on Debian/Ubuntu.
-# - Installs mise and the global toolchains it manages (Node.js LTS, pnpm, Go, Rust, Bun, uv, sqlite3def), plus Playwright
+# - Installs mise and the global toolchains it manages (Node.js LTS, pnpm, Go, Rust, Bun, uv, sqlite3def)
 # - Installs Claude Code
 # - Runs system package/app installers (uses sudo)
 # - Copies backend-specific upgrade.sh to $HOME
@@ -103,6 +103,11 @@ warn() {
   print_box "WARNING\n$*" "$TITLE_COLOR"
 }
 
+# 'dpkg -s' also succeeds for removed-but-not-purged packages.
+pkg_installed() {
+  [[ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null || true)" == "installed" ]]
+}
+
 err() {
   print_box "ERROR\n$*" "$ERROR_COLOR" >&2
 }
@@ -136,7 +141,7 @@ Usage: ./linux_helpers/setup.sh [-h|--help]
 Options:
   -h, --help  Show this help message
 
-Run this script as your normal user. It calls sudo for system steps (apt installers, lm-sensors).
+Run this script as your normal user. It calls sudo for system steps (apt installers, lm-sensors, smartmontools).
 EOF
 }
 
@@ -173,16 +178,21 @@ validate_backend() {
   esac
 }
 
+# Failed installers are collected so one broken app does not block the rest; reported at the end.
+FAILED_INSTALLERS=()
+
 run_installer_script() {
   local script="$1"
   local show_title="${2:-0}"
   local script_name
   local script_title
+  local status=0
 
   script_name="$(basename "$script")"
   if [[ ! -x "$script" ]]; then
     err "$script_name is not executable; refusing to change permissions automatically."
-    exit 1
+    FAILED_INSTALLERS+=("$script_name")
+    return 0
   fi
 
   if (( show_title )); then
@@ -194,20 +204,19 @@ run_installer_script() {
 
   log "Processing $script_name..."
   if (( show_title )); then
-    if SKIP_INSTALLER_TITLE=1 bash "$script"; then
-      log "Successfully executed $script_name"
-    else
-      err "Failed to execute $script_name. Stopping execution."
-      exit 1
-    fi
-    return 0
+    SKIP_INSTALLER_TITLE=1 bash "$script" || status=$?
+  else
+    bash "$script" || status=$?
   fi
 
-  if bash "$script"; then
+  if (( status == 0 )); then
     log "Successfully executed $script_name"
+  elif (( status == 130 )); then
+    err "Interrupted while running $script_name."
+    exit 130
   else
-    err "Failed to execute $script_name. Stopping execution."
-    exit 1
+    err "Failed to execute $script_name (exit code $status). Continuing with the next one."
+    FAILED_INSTALLERS+=("$script_name")
   fi
 }
 
@@ -296,7 +305,7 @@ else
 fi
 validate_backend "$BACKEND"
 
-# 1) Bootstrap mise + developer toolchains (Node.js, pnpm, Go, Rust, Bun, uv, sqlite3def), Playwright, Podman
+# 1) Bootstrap mise + developer toolchains (Node.js, pnpm, Go, Rust, Bun, uv, sqlite3def), Podman
 section "Bootstrapping toolchains"
 TOOLCHAIN_BOOTSTRAP="$SCRIPT_DIR/toolchains/bootstrap_toolchains.sh"
 if [[ -f "$TOOLCHAIN_BOOTSTRAP" ]]; then
@@ -340,16 +349,26 @@ fi
 # Apps phase
 run_installers_from_dir "$APPS_DIR" 1 1
 
-log "All installation scripts have been executed successfully."
+log "All installation scripts have been processed (failed: ${#FAILED_INSTALLERS[@]})."
 
 # 2a) Ensure lm-sensors is installed for temperature monitoring (apt-only)
 section "Installing monitor prerequisites"
-if ! dpkg -s lm-sensors >/dev/null 2>&1; then
+if ! pkg_installed lm-sensors; then
   log "Installing lm-sensors (apt-get)..."
   sudo apt-get update || true
   sudo apt-get install -y lm-sensors
 else
   log "lm-sensors already installed."
+fi
+
+# 2b) Ensure smartmontools (smartctl) is installed for disk health checks (apt-only)
+if ! pkg_installed smartmontools; then
+  log "Installing smartmontools (apt-get)..."
+  sudo apt-get update || true
+  # Recommends can pull in a mail server; it is not needed for smartctl.
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends smartmontools
+else
+  log "smartmontools already installed."
 fi
 
 # 3) Copy upgrade helper from backend to $HOME (force overwrite, ensure executable)
@@ -385,6 +404,22 @@ if [[ -f "$MACOS_QUIT_SHORTCUT" ]]; then
   fi
 else
   log "macos_quit_shortcut.sh not found at $MACOS_QUIT_SHORTCUT (skipping)."
+fi
+
+# 3e) Pin installed apps to the GNOME dock (best effort)
+section "Pinning apps to the GNOME dock"
+PIN_DOCK_APPS="$SCRIPT_DIR/pin_dock_apps.sh"
+if [[ -f "$PIN_DOCK_APPS" ]]; then
+  if ! bash "$PIN_DOCK_APPS"; then
+    warn "Unable to pin apps to the GNOME dock; continuing setup."
+  fi
+else
+  log "pin_dock_apps.sh not found at $PIN_DOCK_APPS (skipping)."
+fi
+
+if (( ${#FAILED_INSTALLERS[@]} )); then
+  err "Setup finished, but these installers failed: ${FAILED_INSTALLERS[*]}\nFix the cause and re-run setup."
+  exit 1
 fi
 
 section "Setup completed"

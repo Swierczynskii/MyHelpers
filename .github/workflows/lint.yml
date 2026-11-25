@@ -1,0 +1,29 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Bash syntax
+        run: git ls-files -z '*.sh' | xargs -0 -n1 bash -n
+      - name: ShellCheck
+        run: |
+          shellcheck --version
+          git ls-files -z '*.sh' | xargs -0 shellcheck -x -P SCRIPTDIR -S warning
+      - name: Python and JSON
+        run: |
+          python3 -m py_compile linux_helpers/codium/ui_state.py
+          for f in linux_helpers/codium/config/*.json; do python3 -m json.tool "$f" >/dev/null; done
+      - name: App installers are executable
+        run: |
+          bad="$(git ls-files -s 'linux_helpers/debian_apt/apps_installations/install_*.sh' | awk '$1 != "100755"')"
+          if [ -n "$bad" ]; then echo "$bad"; exit 1; fi

@@ -43,7 +43,7 @@ install_mise() {
       ;;
   esac
 
-  if [[ -f "$MISE_KEYRING" ]]; then
+  if [[ -s "$MISE_KEYRING" ]]; then
     log "Using existing keyring: $MISE_KEYRING"
   else
     local tmp

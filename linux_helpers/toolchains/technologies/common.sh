@@ -106,6 +106,11 @@ guard_against_sudo() {
   fi
 }
 
+# 'dpkg -s' also succeeds for removed-but-not-purged packages.
+pkg_installed() {
+  [[ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null || true)" == "installed" ]]
+}
+
 apt_pkg_available() {
   local pkg="$1"
   local cand

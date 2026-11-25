@@ -1,0 +1,302 @@
+{
+  "workbench.activity.pinnedViewlets2": [
+    {
+      "id": "workbench.view.explorer",
+      "pinned": true,
+      "visible": false,
+      "order": 0
+    },
+    {
+      "id": "workbench.view.search",
+      "pinned": true,
+      "visible": false,
+      "order": 1
+    },
+    {
+      "id": "workbench.view.scm",
+      "pinned": true,
+      "visible": false,
+      "order": 2
+    },
+    {
+      "id": "workbench.view.debug",
+      "pinned": false,
+      "visible": false,
+      "order": 3
+    },
+    {
+      "id": "workbench.view.remote",
+      "pinned": true,
+      "visible": false,
+      "order": 4
+    },
+    {
+      "id": "workbench.view.extension.latex-workshop-activitybar",
+      "pinned": true,
+      "visible": false,
+      "order": 8
+    },
+    {
+      "id": "workbench.view.extension.python",
+      "pinned": true,
+      "visible": false,
+      "order": 8
+    },
+    {
+      "id": "workbench.view.extension.markdown-preview-enhanced-side-panel-legacy",
+      "pinned": true,
+      "visible": false,
+      "order": 9
+    },
+    {
+      "id": "workbench.view.voiceTranscriptsContainer",
+      "pinned": true,
+      "visible": false,
+      "order": 10
+    },
+    {
+      "id": "workbench.view.extensions",
+      "pinned": true,
+      "visible": false,
+      "order": 4
+    },
+    {
+      "id": "workbench.view.extension.test",
+      "pinned": false,
+      "visible": false,
+      "order": 6
+    },
+    {
+      "id": "workbench.view.extension.references-view",
+      "pinned": true,
+      "visible": false,
+      "order": 7
+    }
+  ],
+  "workbench.panel.pinnedPanels": [
+    {
+      "id": "workbench.panel.markers",
+      "pinned": true,
+      "visible": false,
+      "order": 0
+    },
+    {
+      "id": "workbench.panel.output",
+      "pinned": true,
+      "visible": false,
+      "order": 1
+    },
+    {
+      "id": "workbench.panel.testResults",
+      "pinned": true,
+      "visible": false,
+      "order": 3
+    },
+    {
+      "id": "terminal",
+      "pinned": true,
+      "visible": false,
+      "order": 3
+    },
+    {
+      "id": "refactorPreview",
+      "pinned": true,
+      "visible": false
+    },
+    {
+      "id": "~remote.forwardedPortsContainer",
+      "pinned": true,
+      "visible": false,
+      "order": 5
+    },
+    {
+      "id": "workbench.panel.repl",
+      "pinned": true,
+      "visible": false,
+      "order": 2
+    }
+  ],
+  "workbench.auxiliarybar.pinnedPanels": [
+    {
+      "id": "workbench.panel.chat",
+      "pinned": true,
+      "visible": false,
+      "order": 1
+    },
+    {
+      "id": "workbench.view.extension.markdown-preview-enhanced-side-panel",
+      "pinned": true,
+      "visible": false,
+      "order": 101
+    }
+  ],
+  "workbench.explorer.views.state.hidden": [
+    {
+      "id": "outline",
+      "isHidden": true
+    },
+    {
+      "id": "timeline",
+      "isHidden": true
+    },
+    {
+      "id": "workbench.explorer.openEditorsView",
+      "isHidden": true
+    },
+    {
+      "id": "npm",
+      "isHidden": true
+    },
+    {
+      "id": "workbench.explorer.fileView",
+      "isHidden": false
+    },
+    {
+      "id": "commitViewProvider",
+      "isHidden": false
+    },
+    {
+      "id": "compareCommitViewProvider",
+      "isHidden": false
+    }
+  ],
+  "workbench.scm.views.state.hidden": [
+    {
+      "id": "workbench.scm.repositories",
+      "isHidden": true
+    },
+    {
+      "id": "workbench.scm",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.scm.history",
+      "isHidden": false
+    }
+  ],
+  "workbench.view.extensions.state.hidden": [
+    {
+      "id": "workbench.views.extensions.installed",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.searchOutdated",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.workspaceRecommendations",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.popular",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.searchRecentlyUpdated",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.otherRecommendations",
+      "isHidden": false
+    },
+    {
+      "id": "extensions.recommendedList",
+      "isHidden": true
+    },
+    {
+      "id": "workbench.views.extensions.enabled",
+      "isHidden": true
+    },
+    {
+      "id": "workbench.views.extensions.disabled",
+      "isHidden": true
+    },
+    {
+      "id": "workbench.views.extensions.marketplace",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.searchInstalled",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.searchEnabled",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.searchDisabled",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.searchBuiltin",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.searchWorkspaceUnsupported",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.builtinFeatureExtensions",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.builtinThemeExtensions",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.builtinProgrammingLanguageExtensions",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.untrustedUnsupportedExtensions",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.untrustedPartiallySupportedExtensions",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.virtualUnsupportedExtensions",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.virtualPartiallySupportedExtensions",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.deprecatedExtensions",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.mcp.installed",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.mcp.marketplace",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.marketplaceAccess",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.agentPlugins.installed",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.extensions.restartRequired",
+      "isHidden": false
+    },
+    {
+      "id": "workbench.views.agentPlugins.marketplace",
+      "isHidden": false
+    }
+  ],
+  "workbench.statusbar.hidden": [
+    "GitHub.copilot.status"
+  ],
+  "workbench.sideBar.size": "329",
+  "workbench.panel.size": "266",
+  "workbench.panel.alignment": "center",
+  "workbench.auxiliaryBar.size": "300"
+}

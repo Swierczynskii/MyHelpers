@@ -7,9 +7,24 @@ umask 022
 # shellcheck source=common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
+warn_docker_replacement() {
+  local found=()
+  local pkg
+  # Packages that podman-docker conflicts with.
+  for pkg in docker.io docker-cli docker-ce-cli; do
+    if pkg_installed "$pkg"; then
+      found+=("$pkg")
+    fi
+  done
+
+  if (( ${#found[@]} )); then
+    warn "Installed Docker packages conflict with podman-docker: ${found[*]}\nPodman replaces them: apt will remove them and any packages that depend on them."
+  fi
+}
+
 install_podman() {
   require_sudo
-  if have podman || dpkg -s podman >/dev/null 2>&1; then
+  if have podman || pkg_installed podman; then
     log "podman already installed: $(podman --version 2>/dev/null || echo 'present')"
     return
   fi
@@ -25,6 +40,10 @@ install_podman() {
 
   if ! apt_pkg_available netavark && apt_pkg_available containernetworking-plugins; then
     pkgs+=("containernetworking-plugins")
+  fi
+
+  if [[ " ${pkgs[*]} " == *" podman-docker "* ]]; then
+    warn_docker_replacement
   fi
 
   log "Installing Podman and extras via apt: ${pkgs[*]}"

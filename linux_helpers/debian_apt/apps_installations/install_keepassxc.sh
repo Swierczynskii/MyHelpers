@@ -88,6 +88,11 @@ log() {
   printf '%s %s\n' "$(timestamp)" "$*"
 }
 
+# 'dpkg -s' also succeeds for removed-but-not-purged packages.
+pkg_installed() {
+  [[ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null || true)" == "installed" ]]
+}
+
 err() {
   print_box "ERROR\n$*" "$ERROR_COLOR" >&2
 }
@@ -112,7 +117,7 @@ if ! command -v apt-get >/dev/null 2>&1; then
 fi
 
 # Non-apt install (snap, AppImage, ...) already on PATH: leave it alone.
-if ! dpkg -s keepassxc >/dev/null 2>&1 && ! dpkg -s keepassxc-full >/dev/null 2>&1 \
+if ! pkg_installed keepassxc && ! pkg_installed keepassxc-full \
   && command -v keepassxc >/dev/null 2>&1; then
   log "Non-apt KeePassXC found at $(command -v keepassxc). Skipping."
   exit 0
@@ -151,7 +156,7 @@ if [[ -n "$CODENAME" ]] && { has_ppa || ppa_supports_release "$CODENAME"; }; the
 
   # The PPA ships everything in `keepassxc`; Ubuntu's `keepassxc-full` owns the same
   # files, so swap it out in one transaction. Settings and .kdbx files are untouched.
-  if dpkg -s keepassxc-full >/dev/null 2>&1; then
+  if pkg_installed keepassxc-full; then
     log "Replacing Ubuntu's keepassxc-full with the PPA build..."
     sudo apt-get install -y keepassxc keepassxc-full-
   else
@@ -159,7 +164,7 @@ if [[ -n "$CODENAME" ]] && { has_ppa || ppa_supports_release "$CODENAME"; }; the
     sudo apt-get install -y keepassxc
   fi
 else
-  if dpkg -s keepassxc >/dev/null 2>&1; then
+  if pkg_installed keepassxc; then
     log "keepassxc already installed (distro package). Skipping."
     exit 0
   fi

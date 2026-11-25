@@ -88,6 +88,32 @@ log() {
   printf '%s %s\n' "$(timestamp)" "$*"
 }
 
+# 'dpkg -s' also succeeds for removed-but-not-purged packages.
+pkg_installed() {
+  [[ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null || true)" == "installed" ]]
+}
+
+# Remove only the entries using the given repository (regex); other entries in the same file are kept.
+remove_apt_entries() {
+  local f tmp
+  for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+    [[ -f "$f" ]] || continue
+    grep -Eq "^[[:space:]]*(deb|URIs:).*$1" "$f" || continue
+    tmp="$(mktemp)"
+    if [[ "$f" == *.sources ]]; then
+      RE="$1" awk 'BEGIN { RS = ""; ORS = "\n\n" } $0 !~ ("(^|\n)URIs:[^\n]*" ENVIRON["RE"])' "$f" > "$tmp"
+    else
+      RE="$1" awk '$0 !~ ("^[[:space:]]*deb.*" ENVIRON["RE"])' "$f" > "$tmp"
+    fi
+    if [[ "$f" == /etc/apt/sources.list ]] || grep -Eq '^[[:space:]]*(deb|URIs:)' "$tmp"; then
+      sudo install -m 0644 "$tmp" "$f"
+    else
+      sudo rm -f "$f"
+    fi
+    rm -f "$tmp"
+  done
+}
+
 err() {
   print_box "ERROR\n$*" "$ERROR_COLOR" >&2
 }
@@ -112,7 +138,7 @@ if [[ "$ARCH" != "amd64" ]]; then
 fi
 
 log "Checking if Signal Desktop is already installed..."
-if dpkg -s signal-desktop >/dev/null 2>&1 || command -v signal-desktop >/dev/null 2>&1; then
+if pkg_installed signal-desktop || command -v signal-desktop >/dev/null 2>&1; then
   log "signal-desktop already installed. Skipping."
   exit 0
 fi
@@ -142,7 +168,7 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 log "Preparing Signal keyring..."
-if [[ -f "$KEYRING" ]]; then
+if [[ -s "$KEYRING" ]]; then
   log "Using existing keyring: $KEYRING"
 else
   KEY_ASC="$TMP_DIR/keys.asc"
@@ -152,13 +178,13 @@ else
   sudo install -m 0644 "$KEY_GPG" "$KEYRING"
 fi
 
-log "Cleaning duplicate Signal APT sources..."
-sudo sed -i -E '/updates\.signal\.org/d' /etc/apt/sources.list || true
-sudo bash -lc 'for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do [ -e "$f" ] || continue; if grep -qs "updates\.signal\.org" "$f"; then rm -f "$f"; fi; done'
-
-log "Adding Signal APT repository..."
 SOURCE_TMP="$TMP_DIR/signal-desktop.sources"
 download_to "$SOURCE_URL" "$SOURCE_TMP"
+
+log "Cleaning duplicate Signal APT sources..."
+remove_apt_entries 'updates[.]signal[.]org'
+
+log "Adding Signal APT repository..."
 sudo install -m 0644 "$SOURCE_TMP" "$LIST"
 
 log "Updating package lists..."

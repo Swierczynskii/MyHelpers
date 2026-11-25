@@ -99,8 +99,13 @@ if ! command -v apt >/dev/null 2>&1; then
 fi
 
 # Remove the Snap build of Firefox (explicitly requested; LibreWolf replaces it).
-# Only called once LibreWolf is installed; no --purge, so snap keeps an automatic snapshot of its data.
+# Skipped unless a librewolf command exists, so a browser always remains; no --purge, so snap keeps an automatic snapshot of its data.
 remove_snap_firefox() {
+  if ! command -v librewolf >/dev/null 2>&1; then
+    log "WARNING: librewolf command not found; keeping Snap Firefox if present."
+    return 0
+  fi
+
   if command -v snap >/dev/null 2>&1 && snap list firefox >/dev/null 2>&1; then
     log "Removing Snap Firefox (data kept in a snap snapshot: 'snap saved', 'snap restore <id>')..."
     sudo snap remove firefox
@@ -109,8 +114,13 @@ remove_snap_firefox() {
   fi
 }
 
+# 'dpkg -s' also succeeds for removed-but-not-purged packages.
+librewolf_package_installed() {
+  [[ "$(dpkg-query -W -f='${db:Status-Status}' librewolf 2>/dev/null || true)" == "installed" ]]
+}
+
 log "Checking if LibreWolf is already installed..."
-if dpkg -s librewolf >/dev/null 2>&1 || command -v librewolf >/dev/null 2>&1; then
+if librewolf_package_installed || command -v librewolf >/dev/null 2>&1; then
   log "librewolf already installed. Skipping."
   remove_snap_firefox
   exit 0

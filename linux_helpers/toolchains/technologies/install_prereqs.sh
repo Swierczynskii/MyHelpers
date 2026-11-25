@@ -16,8 +16,8 @@ install_prereqs() {
   export DEBIAN_FRONTEND=noninteractive
   sudo apt-get update -y
   sudo apt-get install -y \
-    ca-certificates curl wget git unzip tar xz-utils gnupg \
-    build-essential pkg-config make gcc
+    ca-certificates curl wget git unzip tar xz-utils gnupg jq \
+    build-essential pkg-config make gcc shellcheck
   log "git present: $(git --version 2>/dev/null || true)"
 }
 

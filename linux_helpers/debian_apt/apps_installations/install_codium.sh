@@ -82,6 +82,32 @@ log() {
   printf '%s %s\n' "$(timestamp)" "$*"
 }
 
+# 'dpkg -s' also succeeds for removed-but-not-purged packages.
+pkg_installed() {
+  [[ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null || true)" == "installed" ]]
+}
+
+# Remove only the entries using the given repository (regex); other entries in the same file are kept.
+remove_apt_entries() {
+  local f tmp
+  for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+    [[ -f "$f" ]] || continue
+    grep -Eq "^[[:space:]]*(deb|URIs:).*$1" "$f" || continue
+    tmp="$(mktemp)"
+    if [[ "$f" == *.sources ]]; then
+      RE="$1" awk 'BEGIN { RS = ""; ORS = "\n\n" } $0 !~ ("(^|\n)URIs:[^\n]*" ENVIRON["RE"])' "$f" > "$tmp"
+    else
+      RE="$1" awk '$0 !~ ("^[[:space:]]*deb.*" ENVIRON["RE"])' "$f" > "$tmp"
+    fi
+    if [[ "$f" == /etc/apt/sources.list ]] || grep -Eq '^[[:space:]]*(deb|URIs:)' "$tmp"; then
+      sudo install -m 0644 "$tmp" "$f"
+    else
+      sudo rm -f "$f"
+    fi
+    rm -f "$tmp"
+  done
+}
+
 err() {
   print_box "ERROR\n$*" "$ERROR_COLOR" >&2
 }
@@ -102,9 +128,14 @@ if ! command -v apt-get >/dev/null 2>&1; then
   exit 1
 fi
 
+if [[ "${EUID:-$(id -u)}" -eq 0 || -n "${SUDO_USER:-}" ]]; then
+  err "Run this script without sudo. It configures VSCodium for your user and calls sudo itself."
+  exit 1
+fi
+
 # Skip if already installed
 log "Checking if VSCodium is already installed..."
-if dpkg -s codium >/dev/null 2>&1 || command -v codium >/dev/null 2>&1; then
+if pkg_installed codium || command -v codium >/dev/null 2>&1; then
   log "codium already installed. Skipping."
   exit 0
 fi
@@ -126,7 +157,7 @@ SOURCES="/etc/apt/sources.list.d/vscodium.sources"
 KEY_URL="https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo/-/raw/master/pub.gpg"
 
 log "Ensuring VSCodium GPG key..."
-if [[ -f "$KEYRING" ]]; then
+if [[ -s "$KEYRING" ]]; then
   log "Using existing keyring: $KEYRING"
 else
   log "Downloading VSCodium key and writing to $KEYRING"
@@ -138,7 +169,7 @@ else
 fi
 
 log "Cleaning duplicate VSCodium APT sources..."
-sudo bash -c 'for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do [ -e "$f" ] || continue; [ "$f" = "'"$SOURCES"'" ] && continue; if grep -qs "download\.vscodium\.com" "$f"; then rm -f "$f"; fi; done'
+remove_apt_entries 'download[.]vscodium[.]com'
 
 log "Adding VSCodium APT repository..."
 printf 'Types: deb\nURIs: https://download.vscodium.com/debs\nSuites: vscodium\nComponents: main\nArchitectures: %s\nSigned-By: %s\n' "$ARCH" "$KEYRING" | sudo tee "$SOURCES" >/dev/null
@@ -149,6 +180,19 @@ sudo apt-get update
 
 log "Installing codium..."
 sudo apt-get install -y codium
+
+# Only without existing settings: they survive a package removal and must not be replaced by a reinstall.
+CONFIGURE_CODIUM="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/codium/configure_codium.sh"
+if [[ -f "$HOME/.config/VSCodium/User/settings.json" ]]; then
+  log "Existing VSCodium settings kept. To apply the stored ones: bash $CONFIGURE_CODIUM"
+elif [[ -f "$CONFIGURE_CODIUM" ]]; then
+  log "Applying VSCodium settings..."
+  if ! bash "$CONFIGURE_CODIUM"; then
+    log "Warning: VSCodium settings not fully applied. Re-run: bash $CONFIGURE_CODIUM"
+  fi
+else
+  log "Warning: $CONFIGURE_CODIUM not found; VSCodium settings not applied."
+fi
 
 log "VSCodium installation complete."
 log "Launch: codium"

@@ -7,6 +7,11 @@ umask 022
 # This script is invoked by linux_helpers/setup.sh and is safe to re-run.
 # -----------------------------------------------------------------------------
 
+if [[ "${EUID:-$(id -u)}" -eq 0 || -n "${SUDO_USER:-}" ]]; then
+  echo "Run this script without sudo; it configures your own user." >&2
+  exit 1
+fi
+
 SCHEMA='org.gnome.desktop.wm.keybindings'
 KEY='close'
 TARGET_SHORTCUT="['<Super>q']"
@@ -18,7 +23,7 @@ require_gnome_settings() {
     exit 1
   fi
 
-  if ! gsettings list-schemas | grep -Fxq "$SCHEMA"; then
+  if ! gsettings list-schemas | grep -Fx "$SCHEMA" >/dev/null; then
     printf 'Error: GNOME window-manager settings are unavailable in this session.\n' >&2
     exit 1
   fi
@@ -68,4 +73,9 @@ if [[ "$current_shortcut" == "$TARGET_SHORTCUT" ]]; then
 fi
 
 gsettings set "$SCHEMA" "$KEY" "$TARGET_SHORTCUT"
+# Without a desktop session 'set' exits 0 but saves nothing.
+if [[ "$(gsettings get "$SCHEMA" "$KEY")" != "$TARGET_SHORTCUT" ]]; then
+  printf 'Error: the setting was not saved; run this from your GNOME desktop session.\n' >&2
+  exit 1
+fi
 printf '%s\n' "Set GNOME's close-window shortcut to Super+Q."

@@ -81,6 +81,11 @@ log() {
   printf '%s %s\n' "$(timestamp)" "$*"
 }
 
+# 'dpkg -s' also succeeds for removed-but-not-purged packages.
+pkg_installed() {
+  [[ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null || true)" == "installed" ]]
+}
+
 err() {
   print_box "ERROR\n$*" "$ERROR_COLOR" >&2
 }
@@ -107,7 +112,7 @@ fi
 PACKAGES=(qemu-system-x86 libvirt-daemon-system libvirt-clients virt-manager ovmf)
 MISSING=()
 for pkg in "${PACKAGES[@]}"; do
-  dpkg -s "$pkg" >/dev/null 2>&1 || MISSING+=("$pkg")
+  pkg_installed "$pkg" || MISSING+=("$pkg")
 done
 
 if (( ${#MISSING[@]} )); then

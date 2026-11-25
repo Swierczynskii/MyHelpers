@@ -1,0 +1,11 @@
+{
+  "workbench.iconTheme": "material-icon-theme",
+  "workbench.startupEditor": "none",
+  "workbench.activityBar.location": "top",
+  "workbench.secondarySideBar.defaultVisibility": "hidden",
+  "workbench.colorTheme": "Tokyo Night Light",
+  "workbench.productIconTheme": "material-product-icons",
+  "debug.toolBarLocation": "hidden",
+  "debug.showInStatusBar": "never",
+  "debug.showInEditorTitleMenu": "never"
+}

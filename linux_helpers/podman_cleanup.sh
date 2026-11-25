@@ -142,8 +142,20 @@ list_non_running_containers() {
     list_all_containers | awk -F $'\t' 'BEGIN { IGNORECASE=1 } NF && tolower($3) != "running" { print }'
 }
 
+# One row per tag, so a multi-tag image shows every tag that can be removed.
 list_all_images() {
-    podman images -a --format '{{printf "%s\t%s\t%s\t%s" .ID .Repository .Tag .CreatedSince}}' | awk -F $'\t' 'NF && !seen[$1]++ { print }' || true
+    podman images -a --format '{{printf "%s\t%s\t%s\t%s" .ID .Repository .Tag .CreatedSince}}' | awk -F $'\t' 'NF && !seen[$0]++ { print }' || true
+}
+
+# Tagged images are removed by name (keeps their other tags); untagged ones by ID.
+image_ref() {
+    local image_id="$1" repository="$2" tag="$3"
+
+    if [[ -z "$repository" || -z "$tag" || "$repository" == "<none>" || "$tag" == "<none>" ]]; then
+        printf '%s' "$image_id"
+    else
+        printf '%s:%s' "$repository" "$tag"
+    fi
 }
 
 list_none_images() {
@@ -214,17 +226,18 @@ filter_containers_by_selection() {
 }
 
 filter_images_by_selection() {
-    local images_output image_id repository tag created_since
+    local images_output image_id repository tag created_since ref
     local -A selected=()
 
-    for image_id in "${SELECTED_IMAGES[@]}"; do
-        selected["$image_id"]=1
+    for ref in "${SELECTED_IMAGES[@]}"; do
+        selected["$ref"]=1
     done
 
     images_output="$(list_all_images)"
     while IFS=$'\t' read -r image_id repository tag created_since; do
         [[ -n "$image_id" ]] || continue
-        if [[ -n "${selected[$image_id]:-}" ]]; then
+        ref="$(image_ref "$image_id" "$repository" "$tag")"
+        if [[ -n "${selected[$ref]:-}" ]]; then
             printf '%s\t%s\t%s\t%s\n' "$image_id" "$repository" "$tag" "$created_since"
         fi
     done <<< "$images_output"
@@ -243,7 +256,11 @@ count_remaining_selected_containers() {
 }
 
 count_remaining_selected_images() {
-    filter_images_by_selection | count_lines
+    # Count references: an image pulled by digest from two repositories has two rows with one reference.
+    filter_images_by_selection | while IFS=$'\t' read -r image_id repository tag _; do
+        image_ref "$image_id" "$repository" "$tag"
+        echo
+    done | sort -u | count_lines
 }
 
 build_fzf_container_lines() {
@@ -266,16 +283,18 @@ build_fzf_image_lines() {
 
     while IFS=$'\t' read -r image_id repository tag created_since; do
         [[ -n "$image_id" ]] || continue
-        printf '%s\t%s\t%s\t%s\n' \
+        # Field 5 (hidden in fzf) is the full reference used for removal.
+        printf '%s\t%s\t%s\t%s\t%s\n' \
             "$image_id" \
             "$(truncate_text 28 "$repository")" \
             "$(truncate_text 20 "$tag")" \
-            "$created_since"
+            "$created_since" \
+            "$(image_ref "$image_id" "$repository" "$tag")"
     done <<< "$data"
 }
 
 extract_ids_from_selection() {
-    awk -F $'\t' 'NF { print $1 }'
+    awk -F $'\t' 'NF { id = (NF >= 5 ? $5 : $1); if (!seen[id]++) print id }'
 }
 
 fzf_select_ids() {
@@ -353,7 +372,7 @@ select_targets_tui() {
     if [[ -n "$images_output" ]]; then
         if ! ids="$(fzf_select_ids \
             "images" \
-            "Tab marks rows, Enter confirms (nothing marked = skip this step), Esc cancels. Tagged and <none>:<none> images can be selected here." \
+            "Tab marks rows, Enter confirms (nothing marked = skip this step), Esc cancels. Tagged and <none>:<none> images can be selected here; each tag has its own row." \
             "$images_output" \
             "image")"; then
             print_header "Selection cancelled" "$YELLOW"
@@ -373,6 +392,7 @@ preview_cleanup() {
 
         print_header "Preview: Selected Podman cleanup" "$YELLOW"
         echo "fzf mode: the marked items below would be removed. This mode may include running containers and tagged images."
+        echo "Images still used by containers you did not mark are kept; other tags of an image are kept too."
         echo
         echo "Selected containers:             $container_count"
         echo "Selected images:                 $image_count"
@@ -478,17 +498,18 @@ remove_selected_containers() {
 }
 
 remove_selected_images() {
-    local image_id removal_failed=0
+    local ref removal_failed=0
 
     if (( ${#SELECTED_IMAGES[@]} == 0 )); then
         echo "[*] No images were selected for removal."
         return 0
     fi
 
-    for image_id in "${SELECTED_IMAGES[@]}"; do
-        echo "[*] Removing image $image_id ..."
-        if ! podman rmi -f --ignore "$image_id"; then
-            echo "[!] Could not remove image $image_id; it may still be referenced."
+    for ref in "${SELECTED_IMAGES[@]}"; do
+        echo "[*] Removing image $ref ..."
+        # No -f: it would also remove (even running) containers that were not selected.
+        if ! podman rmi --ignore "$ref"; then
+            echo "[!] Could not remove image $ref; it may be used by a container that was not removed, have other tags, or have child images."
             removal_failed=1
         fi
     done
@@ -563,7 +584,7 @@ if (( SELECT_MODE )); then
     echo "Selected containers remaining: $remaining_selected_containers"
     echo "Selected images remaining:     $remaining_selected_images"
     if (( remaining_selected_images > 0 )); then
-        echo "Some selected images are likely still referenced by Podman and could not be removed safely."
+        echo "Some selected images are likely still used by containers or other images and were kept."
     fi
     exit 0
 fi

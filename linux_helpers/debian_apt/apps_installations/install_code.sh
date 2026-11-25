@@ -82,6 +82,32 @@ log() {
   printf '%s %s\n' "$(timestamp)" "$*"
 }
 
+# 'dpkg -s' also succeeds for removed-but-not-purged packages.
+pkg_installed() {
+  [[ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null || true)" == "installed" ]]
+}
+
+# Remove only the entries using the given repository (regex); other entries in the same file are kept.
+remove_apt_entries() {
+  local f tmp
+  for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+    [[ -f "$f" ]] || continue
+    grep -Eq "^[[:space:]]*(deb|URIs:).*$1" "$f" || continue
+    tmp="$(mktemp)"
+    if [[ "$f" == *.sources ]]; then
+      RE="$1" awk 'BEGIN { RS = ""; ORS = "\n\n" } $0 !~ ("(^|\n)URIs:[^\n]*" ENVIRON["RE"])' "$f" > "$tmp"
+    else
+      RE="$1" awk '$0 !~ ("^[[:space:]]*deb.*" ENVIRON["RE"])' "$f" > "$tmp"
+    fi
+    if [[ "$f" == /etc/apt/sources.list ]] || grep -Eq '^[[:space:]]*(deb|URIs:)' "$tmp"; then
+      sudo install -m 0644 "$tmp" "$f"
+    else
+      sudo rm -f "$f"
+    fi
+    rm -f "$tmp"
+  done
+}
+
 err() {
   print_box "ERROR\n$*" "$ERROR_COLOR" >&2
 }
@@ -94,7 +120,7 @@ if [[ "${SKIP_INSTALLER_TITLE:-0}" != "1" ]]; then
   title "Installing Visual Studio Code"
 fi
 
-# Visual Studio Code (stable + optional Insiders) installation via Microsoft APT repository
+# Visual Studio Code installation via Microsoft APT repository
 
 # Ensure apt is available
 if ! command -v apt >/dev/null 2>&1; then
@@ -104,7 +130,7 @@ fi
 
 # Skip if already installed
 log "Checking if Visual Studio Code is already installed..."
-if dpkg -s code >/dev/null 2>&1 || command -v code >/dev/null 2>&1; then
+if pkg_installed code || command -v code >/dev/null 2>&1; then
   log "code already installed. Skipping."
   exit 0
 fi
@@ -125,13 +151,13 @@ LIST="/etc/apt/sources.list.d/vscode.list"
 ARCHES="arch=amd64,arm64,armhf"
 
 log "Ensuring Microsoft GPG key..."
-if [[ -f "$KEYRING_VSCODE_USR" ]]; then
+if [[ -s "$KEYRING_VSCODE_USR" ]]; then
   KEYRING="$KEYRING_VSCODE_USR"
   log "Using existing keyring: $KEYRING"
-elif [[ -f "$KEYRING_MS_USR" ]]; then
+elif [[ -s "$KEYRING_MS_USR" ]]; then
   KEYRING="$KEYRING_MS_USR"
   log "Using existing keyring: $KEYRING"
-elif [[ -f "$KEYRING_MS_ETC" ]]; then
+elif [[ -s "$KEYRING_MS_ETC" ]]; then
   KEYRING="$KEYRING_MS_ETC"
   log "Using existing keyring: $KEYRING"
 else
@@ -145,8 +171,7 @@ else
 fi
 
 log "Cleaning duplicate VS Code APT sources..."
-sudo sed -i -E '/packages\.microsoft\.com\/repos\/code/d' /etc/apt/sources.list || true
-sudo bash -lc 'for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do [ -e "$f" ] || continue; if grep -qs "packages\.microsoft\.com/repos/code" "$f"; then rm -f "$f"; fi; done'
+remove_apt_entries 'packages[.]microsoft[.]com/repos/code'
 
 log "Adding VS Code APT repository..."
 echo "deb [${ARCHES} signed-by=${KEYRING}] ${CODE_URL} stable main" | sudo tee "$LIST" >/dev/null
@@ -155,21 +180,8 @@ sudo chmod 0644 "$LIST"
 log "Updating package lists..."
 sudo apt-get update
 
-log "Installing code (stable)..."
+log "Installing code..."
 sudo apt-get install -y code
-
-# Prompt to optionally install Insiders (TTY-only; default No when non-interactive)
-if [[ -t 0 ]]; then
-  read -r -p "Would you like to install Visual Studio Code Insiders as well? [y/N]: " INSTALL_INSIDERS || true
-else
-  INSTALL_INSIDERS="N"
-  log "Non-interactive stdin detected; skipping optional Insiders install (default: No)."
-fi
-if [[ "${INSTALL_INSIDERS:-N}" =~ ^[Yy]$ ]]; then
-  log "Installing code-insiders..."
-  sudo apt-get install -y code-insiders
-fi
 
 log "Visual Studio Code installation complete."
 log "Launch: code"
-log "If installed, Insiders launch: code-insiders"

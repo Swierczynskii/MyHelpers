@@ -7,12 +7,11 @@ umask 022
 #
 # What it does:
 # - With --system: installs apt prerequisites, mise (signed APT repo), Podman, and terminal helpers
-# - Installs global toolchains with mise: Node.js LTS, pnpm, Go, Rust (stable), Bun, uv, sqlite3def, coursier
+# - Installs global toolchains with mise: Node.js LTS, pnpm, Go, Rust (stable), Bun, uv, Java (Temurin 21), sqlite3def, coursier
 #   (Python versions are managed by uv; per-project versions go in each repo's mise.toml)
 # - Installs Scala tooling (scala, sbt, metals, ...) with Coursier (cs, via mise)
-# - Installs Playwright globally via npm and downloads browser binaries
 # - Adds mise activation/shims and PATH entries idempotently to shell profiles
-# - Sets the default GNOME Terminal profile to 8% transparency when available
+# - Sets the default Ptyxis/GNOME Terminal profile to 8% transparency when available
 #
 # Behavior:
 # - Idempotent and safe to re-run; will skip work when tools already available
@@ -46,8 +45,6 @@ source "$TECH_DIR/install_podman.sh"
 source "$TECH_DIR/configure_mise_tools.sh"
 # shellcheck source=technologies/install_scala.sh
 source "$TECH_DIR/install_scala.sh"
-# shellcheck source=technologies/install_playwright.sh
-source "$TECH_DIR/install_playwright.sh"
 # shellcheck source=technologies/configure_bash_prompt.sh
 source "$TECH_DIR/configure_bash_prompt.sh"
 # shellcheck source=technologies/configure_gnome_terminal.sh
@@ -59,7 +56,7 @@ Usage: bash linux_helpers/toolchains/bootstrap_toolchains.sh [-u|--user] | [-s|-
 
 Options:
   -u, --user    Install only mise-managed toolchains and shell config; requires mise (default)
-  -s, --system  Also install apt prerequisites, mise, terminal tools, Podman, and Playwright system deps
+  -s, --system  Also install apt prerequisites, mise, terminal tools, and Podman
   -h, --help  Show this help message
 
 Run this script as your normal user. It calls sudo only for explicit --system steps.
@@ -112,14 +109,15 @@ if (( SYSTEM_MODE )); then
   install_top
   install_podman
 else
-  log "User mode selected; skipping apt prerequisites, mise installation, terminal tools, Podman, and Playwright system dependencies."
+  log "User mode selected; skipping apt prerequisites, mise installation, terminal tools, and Podman."
 fi
 section "Installing global toolchains with mise"
 configure_mise_tools
 section "Installing Scala"
 install_scala
-section "Installing Playwright"
-install_playwright
+# User-installed commands such as claude live here.
+mkdir -p "$HOME/.local/bin"
+ensure_path_entry "export PATH=\"\$HOME/.local/bin:\$PATH\""
 section "Configuring shell prompt"
 configure_bash_prompt
 section "Configuring GNOME Terminal"

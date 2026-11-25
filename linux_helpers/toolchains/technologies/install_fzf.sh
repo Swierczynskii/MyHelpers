@@ -9,7 +9,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 install_fzf() {
   require_sudo
-  if have fzf || dpkg -s fzf >/dev/null 2>&1; then
+  if have fzf || pkg_installed fzf; then
     log "fzf already installed: $(fzf --version 2>/dev/null || echo 'present')"
   else
     log "Installing fzf via apt..."

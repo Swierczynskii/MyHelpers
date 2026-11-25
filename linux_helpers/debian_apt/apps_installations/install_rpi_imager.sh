@@ -81,6 +81,11 @@ log() {
   printf '%s %s\n' "$(timestamp)" "$*"
 }
 
+# 'dpkg -s' also succeeds for removed-but-not-purged packages.
+pkg_installed() {
+  [[ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null || true)" == "installed" ]]
+}
+
 err() {
   print_box "ERROR\n$*" "$ERROR_COLOR" >&2
 }
@@ -99,7 +104,7 @@ if ! command -v apt-get >/dev/null 2>&1; then
 fi
 
 log "Checking if Raspberry Pi Imager is already installed..."
-if dpkg -s rpi-imager >/dev/null 2>&1 || command -v rpi-imager >/dev/null 2>&1; then
+if pkg_installed rpi-imager || command -v rpi-imager >/dev/null 2>&1; then
   log "rpi-imager already installed. Skipping."
   exit 0
 fi

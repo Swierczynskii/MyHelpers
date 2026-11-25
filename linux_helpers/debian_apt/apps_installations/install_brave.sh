@@ -88,6 +88,32 @@ log() {
   printf '%s %s\n' "$(timestamp)" "$*"
 }
 
+# 'dpkg -s' also succeeds for removed-but-not-purged packages.
+pkg_installed() {
+  [[ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null || true)" == "installed" ]]
+}
+
+# Remove only the entries using the given repository (regex); other entries in the same file are kept.
+remove_apt_entries() {
+  local f tmp
+  for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+    [[ -f "$f" ]] || continue
+    grep -Eq "^[[:space:]]*(deb|URIs:).*$1" "$f" || continue
+    tmp="$(mktemp)"
+    if [[ "$f" == *.sources ]]; then
+      RE="$1" awk 'BEGIN { RS = ""; ORS = "\n\n" } $0 !~ ("(^|\n)URIs:[^\n]*" ENVIRON["RE"])' "$f" > "$tmp"
+    else
+      RE="$1" awk '$0 !~ ("^[[:space:]]*deb.*" ENVIRON["RE"])' "$f" > "$tmp"
+    fi
+    if [[ "$f" == /etc/apt/sources.list ]] || grep -Eq '^[[:space:]]*(deb|URIs:)' "$tmp"; then
+      sudo install -m 0644 "$tmp" "$f"
+    else
+      sudo rm -f "$f"
+    fi
+    rm -f "$tmp"
+  done
+}
+
 err() {
   print_box "ERROR\n$*" "$ERROR_COLOR" >&2
 }
@@ -108,7 +134,7 @@ fi
 
 # Skip if already installed
 log "Checking if Brave Browser is already installed..."
-if dpkg -s brave-browser >/dev/null 2>&1 || command -v brave-browser >/dev/null 2>&1; then
+if pkg_installed brave-browser || command -v brave-browser >/dev/null 2>&1; then
   log "brave-browser already installed. Skipping."
   exit 0
 fi
@@ -139,10 +165,10 @@ download_to() {
 }
 
 log "Ensuring Brave signing key..."
-if [[ -f "$KEYRING_DEFAULT" ]]; then
+if [[ -s "$KEYRING_DEFAULT" ]]; then
   KEYRING="$KEYRING_DEFAULT"
   log "Using existing keyring: $KEYRING"
-elif [[ -f "$KEYRING_LEGACY" ]]; then
+elif [[ -s "$KEYRING_LEGACY" ]]; then
   KEYRING="$KEYRING_LEGACY"
   log "Using legacy keyring: $KEYRING"
 else
@@ -156,9 +182,7 @@ else
 fi
 
 log "Cleaning duplicate Brave APT sources..."
-sudo sed -i -E '/brave-browser-apt-release\.s3\.brave\.com/d' /etc/apt/sources.list || true
-# Remove any .list or .sources files referencing Brave to avoid duplicate entries with different Signed-By
-sudo bash -lc 'for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do [ -e "$f" ] || continue; if grep -qs "brave-browser-apt-release\.s3\.brave\.com" "$f"; then rm -f "$f"; fi; done'
+remove_apt_entries 'brave-browser-apt-release[.]s3[.]brave[.]com'
 
 log "Adding Brave APT repository..."
 echo "deb [arch=$ARCH signed-by=$KEYRING] ${BRAVE_URL} stable main" | sudo tee "$LIST" >/dev/null
