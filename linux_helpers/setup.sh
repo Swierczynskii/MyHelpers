@@ -9,6 +9,7 @@ umask 022
 # - Runs system package/app installers (uses sudo)
 # - Copies backend-specific upgrade.sh to $HOME
 # - Copies monitor.sh, podman_cleanup.sh and clear_bash_history.sh to $HOME
+# - Copies init_repository.sh to ~/.local/bin/init-repository
 # Safe to re-run; individual steps are idempotent.
 # -----------------------------------------------------------------------------
 
@@ -391,6 +392,12 @@ deploy_helper_script "$SRC_PODMAN_CLEANUP" "$DEST_PODMAN_CLEANUP" 'podman_cleanu
 SRC_CLEAR_HISTORY="$SCRIPT_DIR/clear_bash_history.sh"
 DEST_CLEAR_HISTORY="$HOME/clear_bash_history.sh"
 deploy_helper_script "$SRC_CLEAR_HISTORY" "$DEST_CLEAR_HISTORY" 'clear_bash_history.sh'
+
+# 3c3) Copy init_repository.sh to ~/.local/bin (on PATH) as the init-repository command
+SRC_INIT_REPOSITORY="$SCRIPT_DIR/init_repository.sh"
+DEST_INIT_REPOSITORY="$HOME/.local/bin/init-repository"
+mkdir -p "$HOME/.local/bin"
+deploy_helper_script "$SRC_INIT_REPOSITORY" "$DEST_INIT_REPOSITORY" 'init_repository.sh'
 
 # 3d) Configure a macOS-like GNOME close-window shortcut (best effort)
 section "Configuring GNOME close-window shortcut"

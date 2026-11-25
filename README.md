@@ -72,6 +72,12 @@ This repository provides a unified setup flow for Debian/Ubuntu (apt).
    - Copies [linux_helpers/clear_bash_history.sh](linux_helpers/clear_bash_history.sh) to `$HOME/clear_bash_history.sh` and marks it executable (idempotent)
    - No option prints help; `--orphans` removes `~/.bash_history-*.tmp`, `--file` empties `~/.bash_history`, `--session` clears the current shell's in-memory history (only when sourced: `. ~/clear_bash_history.sh --session`), `--all` does orphans + file (+ session when sourced)
 
+3c2) Ensures the `init-repository` command is available
+   - Copies [linux_helpers/init_repository.sh](linux_helpers/init_repository.sh) to `~/.local/bin/init-repository` and marks it executable (idempotent)
+   - Run `init-repository` in a project folder: runs `git init` (branch `main`) if needed, adds a `mise.toml` pinning [tk](https://github.com/wedow/ticket), an `AGENTS.md` with the ticket/worktree workflow, and Git-ignored `.tickets/` and `.worktrees/`, then trusts the config and installs tk
+   - A repository it creates gets an initial commit with only the setup files; in an existing one the changes are left for you to commit
+   - Existing `mise.toml` and `AGENTS.md` are kept, and `.gitignore` is only appended to; a folder with its own mise config is not trusted automatically
+
 3d) Configures a macOS-like close-window shortcut (best-effort)
    - Setup runs [linux_helpers/macos_quit_shortcut.sh](linux_helpers/macos_quit_shortcut.sh) directly; it is not copied to `$HOME`
    - On GNOME, it replaces the default `Alt+F4` close-window shortcut with `Super+Q`, the closest Linux equivalent to macOS `Command+Q`
